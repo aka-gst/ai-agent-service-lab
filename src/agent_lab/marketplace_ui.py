@@ -34,8 +34,10 @@ MARKETPLACE_UI = """<!doctype html>
   <h1>AI-помощник аналитика</h1>
   <p class="lead">Загрузите обезличенный CSV и спросите о выкупе или возвратах.</p>
   <section class="panel">
-    <label for="report">CSV-отчёт</label>
+    <label for="report">Текущий CSV-отчёт</label>
     <input id="report" type="file" accept=".csv,text/csv">
+    <label for="previous-report">Предыдущий CSV — необязательно, только для сравнения</label>
+    <input id="previous-report" type="file" accept=".csv,text/csv">
     <label for="question">Вопрос</label>
     <input id="question" value="Почему процент выкупа маленький?">
     <label for="threshold">Порог низкого выкупа, %</label>
@@ -64,13 +66,17 @@ $('ask').onclick = async () => {
   if (!file) { $('error').textContent='Выберите CSV-файл.'; $('error').classList.remove('hidden'); return; }
   $('ask').disabled=true; $('ask').textContent='Считаю…';
   try {
-    const response = await fetch('/v1/marketplace/chat-upload', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({question:$('question').value, filename:file.name, csv_text:await file.text(), low_threshold:Number($('threshold').value), high_return_threshold:Number($('return-threshold').value)})});
+    const previous=$('previous-report').files[0];
+    const comparing=Boolean(previous);
+    const url=comparing?'/v1/marketplace/compare-upload':'/v1/marketplace/chat-upload';
+    const body=comparing?{question:$('question').value, previous_filename:previous.name, previous_csv_text:await previous.text(), current_filename:file.name, current_csv_text:await file.text()}:{question:$('question').value, filename:file.name, csv_text:await file.text(), low_threshold:Number($('threshold').value), high_return_threshold:Number($('return-threshold').value)};
+    const response = await fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
     const payload=await response.json(); if(!response.ok) throw new Error(payload.detail || 'Ошибка анализа');
-    const data=payload.analysis;
-    $('explanation').textContent=payload.explanation;
-    $('knowledge').textContent='Справочник: '+payload.knowledge_sources.join(', ');
+    const data=comparing?payload:payload.analysis;
+    $('explanation').textContent=comparing?'Сравнение рассчитано напрямую по двум отчётам. Возможные причины требуют дополнительных данных.':payload.explanation;
+    $('knowledge').textContent=comparing?'Источники: '+data.sources.join(', '):'Справочник: '+payload.knowledge_sources.join(', ');
     $('answer').textContent=data.answer; fill('facts',data.facts); fill('causes',data.possible_causes); fill('missing',data.missing_data);
-    $('metrics').innerHTML=data.metrics.map(m=>{ const returns=data.analysis_type==='returns'; const rate=returns?m.return_rate:m.buyout_rate; const warn=returns?rate>Number($('return-threshold').value):rate<Number($('threshold').value); const detail=returns?`${m.returned} из ${m.bought} выкупленных`:`${m.bought} из ${m.ordered}`; return `<div class="metric ${warn?'warn':''}"><span>${escapeHtml(m.product)}</span><strong>${rate}%</strong><small>${detail}</small></div>`; }).join('');
+    $('metrics').innerHTML=data.metrics.map(m=>{ if(data.analysis_type==='comparison'){const warn=m.change_pp<0; return `<div class="metric ${warn?'warn':''}"><span>${escapeHtml(m.product)}</span><strong>${m.change_pp>0?'+':''}${m.change_pp} п.п.</strong><small>${m.previous_buyout_rate}% → ${m.current_buyout_rate}%</small></div>`;} const returns=data.analysis_type==='returns'; const rate=returns?m.return_rate:m.buyout_rate; const warn=returns?rate>Number($('return-threshold').value):rate<Number($('threshold').value); const detail=returns?`${m.returned} из ${m.bought} выкупленных`:`${m.bought} из ${m.ordered}`; return `<div class="metric ${warn?'warn':''}"><span>${escapeHtml(m.product)}</span><strong>${rate}%</strong><small>${detail}</small></div>`; }).join('');
     $('result').classList.remove('hidden');
   } catch(e) { $('error').textContent=e.message; $('error').classList.remove('hidden'); }
   finally { $('ask').disabled=false; $('ask').textContent='Проанализировать'; }

@@ -305,3 +305,21 @@ async def test_marketplace_upload_accepts_return_threshold(
 
     assert response.status_code == 200
     assert captured["high_return_threshold"] == 12
+
+
+async def test_marketplace_compare_upload_endpoint(tmp_path: Path) -> None:
+    response = await send_request(
+        tmp_path,
+        "POST",
+        "/v1/marketplace/compare-upload",
+        json={
+            "question": "Где сильнее снизился выкуп?",
+            "previous_filename": "old.csv",
+            "previous_csv_text": "product,ordered,bought,returned\nТовар,10,8,1\n",
+            "current_filename": "new.csv",
+            "current_csv_text": "product,ordered,bought,returned\nТовар,10,5,1\n",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["metrics"][0]["change_pp"] == -30

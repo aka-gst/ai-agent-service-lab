@@ -34,6 +34,23 @@ class AnalyticsAnswer(StrictModel):
     sources: list[str]
 
 
+class PeriodComparisonMetric(StrictModel):
+    product: str
+    previous_buyout_rate: float = Field(ge=0, le=100)
+    current_buyout_rate: float = Field(ge=0, le=100)
+    change_pp: float = Field(ge=-100, le=100)
+
+
+class ComparisonAnswer(StrictModel):
+    analysis_type: Literal["comparison"] = "comparison"
+    answer: str
+    facts: list[str]
+    possible_causes: list[str]
+    missing_data: list[str]
+    metrics: list[PeriodComparisonMetric]
+    sources: list[str]
+
+
 REQUIRED_COLUMNS = {"product", "ordered", "bought", "returned"}
 
 
@@ -266,4 +283,63 @@ def analyze_marketplace_question_text(
         source=filename,
         low_threshold=low_threshold,
         high_return_threshold=high_return_threshold,
+    )
+
+
+def compare_periods_text(
+    previous_csv_text: str,
+    current_csv_text: str,
+    *,
+    previous_filename: str,
+    current_filename: str,
+) -> ComparisonAnswer:
+    """Сравнить выкуп товаров в двух отчётах по процентным пунктам."""
+
+    for filename in (previous_filename, current_filename):
+        if Path(filename).name != filename or not filename.lower().endswith(".csv"):
+            raise ValueError("Допустимо только имя CSV-файла без пути")
+    previous = {item.product: item for item in load_report_text(previous_csv_text)}
+    current = {item.product: item for item in load_report_text(current_csv_text)}
+    common = sorted(previous.keys() & current.keys())
+    if not common:
+        raise ValueError("В отчётах нет общих товаров для сравнения")
+
+    metrics = [
+        PeriodComparisonMetric(
+            product=product,
+            previous_buyout_rate=previous[product].buyout_rate,
+            current_buyout_rate=current[product].buyout_rate,
+            change_pp=round(
+                current[product].buyout_rate - previous[product].buyout_rate, 2
+            ),
+        )
+        for product in common
+    ]
+    ranked = sorted(metrics, key=lambda item: item.change_pp)
+    biggest_decline = ranked[0]
+    facts = [
+        f"{item.product}: {item.previous_buyout_rate}% → {item.current_buyout_rate}% "
+        f"({item.change_pp:+.2f} п.п.)."
+        for item in ranked
+    ]
+    if biggest_decline.change_pp < 0:
+        answer = (
+            f"Самое сильное снижение у товара «{biggest_decline.product}»: "
+            f"{biggest_decline.change_pp:.2f} п.п."
+        )
+    else:
+        answer = "Снижения выкупа среди общих товаров не обнаружено."
+    return ComparisonAnswer(
+        answer=answer,
+        facts=facts,
+        possible_causes=[
+            "Изменение цены, карточки товара, аудитории или условий доставки.",
+            "Сезонность, остатки, размеры или изменение качества поставки.",
+        ] if biggest_decline.change_pp < 0 else [],
+        missing_data=[
+            "Даты периодов, цены, остатки, показы и изменения карточки.",
+            "Причины отказов, отзывы и сроки доставки по каждому периоду.",
+        ] if biggest_decline.change_pp < 0 else [],
+        metrics=metrics,
+        sources=[previous_filename, current_filename],
     )

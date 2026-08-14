@@ -6,6 +6,7 @@ from agent_lab.marketplace_analytics import (
     analyze_low_buyout,
     analyze_low_buyout_text,
     analyze_marketplace_question_text,
+    compare_periods_text,
     load_report,
 )
 
@@ -102,3 +103,16 @@ def test_return_threshold_counts_only_high_products() -> None:
     )
 
     assert "Выше порога 15% — 1 товар(ов)" in answer.answer
+
+
+def test_compare_periods_finds_biggest_buyout_decline() -> None:
+    answer = compare_periods_text(
+        "product,ordered,bought,returned\nФутболка,100,80,5\nКроссовки,50,40,3\n",
+        "product,ordered,bought,returned\nФутболка,100,70,5\nКроссовки,50,25,3\n",
+        previous_filename="previous.csv",
+        current_filename="current.csv",
+    )
+
+    assert "Кроссовки" in answer.answer
+    assert next(item for item in answer.metrics if item.product == "Кроссовки").change_pp == -30
+    assert answer.sources == ["previous.csv", "current.csv"]

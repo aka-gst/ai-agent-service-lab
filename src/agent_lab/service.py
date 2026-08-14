@@ -17,9 +17,11 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from agent_lab.marketplace_analytics import (
     AnalyticsAnswer,
+    ComparisonAnswer,
     analyze_marketplace_question_path,
     analyze_marketplace_question_text,
     question_type,
+    compare_periods_text,
 )
 from agent_lab.marketplace_assistant import (
     MarketplaceChatAnswer,
@@ -114,6 +116,14 @@ class MarketplaceUploadRequest(StrictModel):
     csv_text: str = Field(min_length=1, max_length=5_000_000)
     low_threshold: float = Field(default=70, ge=0, le=100)
     high_return_threshold: float = Field(default=15, ge=0, le=100)
+
+
+class MarketplaceComparisonRequest(StrictModel):
+    question: str = Field(min_length=1, max_length=2_000)
+    previous_filename: str = Field(min_length=1, max_length=255)
+    previous_csv_text: str = Field(min_length=1, max_length=5_000_000)
+    current_filename: str = Field(min_length=1, max_length=255)
+    current_csv_text: str = Field(min_length=1, max_length=5_000_000)
 
 
 def resolve_report(reports_path: Path, filename: str) -> Path:
@@ -301,6 +311,24 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             )
         except (RuntimeError, ValueError, ValidationError) as error:
             raise HTTPException(status_code=502, detail=str(error)) from error
+
+    @app.post(
+        "/v1/marketplace/compare-upload",
+        response_model=ComparisonAnswer,
+        dependencies=[Depends(authorize)],
+    )
+    def marketplace_compare_upload(
+        request: MarketplaceComparisonRequest,
+    ) -> ComparisonAnswer:
+        try:
+            return compare_periods_text(
+                request.previous_csv_text,
+                request.current_csv_text,
+                previous_filename=request.previous_filename,
+                current_filename=request.current_filename,
+            )
+        except ValueError as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
 
     return app
 
