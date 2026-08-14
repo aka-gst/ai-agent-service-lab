@@ -19,6 +19,11 @@ MARKETPLACE_UI = """<!doctype html>
     input { color: #edf1ff; background: #0d1427; border: 1px solid #34415f; }
     button { margin-top: 18px; border: 0; background: #7767ff; color: white; font-weight: 700; cursor: pointer; }
     button:disabled { opacity: .6; cursor: wait; }
+    .presets { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+    .presets button, .secondary { width: auto; margin-top: 0; background: #273351; font-weight: 600; }
+    .actions { display: flex; gap: 10px; margin-top: 18px; }
+    .actions button { margin-top: 0; }
+    .status { color: #8de1bd; }
     .grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(210px,1fr)); gap: 12px; }
     .metric { padding: 16px; border-radius: 14px; background: #0d1427; }
     .metric strong { display: block; font-size: 25px; color: #8de1bd; margin-top: 5px; }
@@ -34,17 +39,23 @@ MARKETPLACE_UI = """<!doctype html>
   <h1>AI-помощник аналитика</h1>
   <p class="lead">Загрузите обезличенный CSV и спросите о выкупе или возвратах.</p>
   <section class="panel">
-    <label for="report">Текущий CSV-отчёт</label>
-    <input id="report" type="file" accept=".csv,text/csv">
-    <label for="previous-report">Предыдущий CSV — необязательно, только для сравнения</label>
+    <label for="previous-report">1. Предыдущий период — было (необязательно)</label>
     <input id="previous-report" type="file" accept=".csv,text/csv">
+    <label for="report">2. Текущий период — стало</label>
+    <input id="report" type="file" accept=".csv,text/csv">
     <label for="question">Вопрос</label>
     <input id="question" value="Почему процент выкупа маленький?">
+    <div class="presets">
+      <button type="button" data-question="Почему процент выкупа маленький?">Низкий выкуп</button>
+      <button type="button" data-question="У какого товара больше всего возвратов и что стоит проверить?">Возвраты</button>
+      <button type="button" data-question="Почему выкуп снизился и у каких товаров изменение самое сильное?">Сравнить периоды</button>
+    </div>
     <label for="threshold">Порог низкого выкупа, %</label>
     <input id="threshold" type="number" min="0" max="100" value="70">
     <label for="return-threshold">Порог высокой доли возвратов, %</label>
     <input id="return-threshold" type="number" min="0" max="100" value="15">
-    <button id="ask">Проанализировать</button>
+    <div class="actions"><button id="ask">Проанализировать</button><button id="clear" type="button" class="secondary">Очистить</button></div>
+    <p id="status" class="status hidden"></p>
     <p id="error" class="error hidden"></p>
   </section>
   <section id="result" class="hidden">
@@ -60,11 +71,20 @@ MARKETPLACE_UI = """<!doctype html>
 const $ = id => document.getElementById(id);
 const fill = (id, items) => $(id).innerHTML = items.map(x => `<li>${escapeHtml(x)}</li>`).join('');
 const escapeHtml = value => { const d=document.createElement('div'); d.textContent=value; return d.innerHTML; };
+document.querySelectorAll('[data-question]').forEach(button => button.onclick=()=>{$('question').value=button.dataset.question;});
+$('clear').onclick=()=>{
+  $('report').value=''; $('previous-report').value='';
+  $('question').value='Почему процент выкупа маленький?';
+  $('result').classList.add('hidden'); $('error').classList.add('hidden'); $('status').classList.add('hidden');
+};
 $('ask').onclick = async () => {
   const file = $('report').files[0];
-  $('error').classList.add('hidden'); $('result').classList.add('hidden');
+  $('error').classList.add('hidden'); $('result').classList.add('hidden'); $('status').classList.add('hidden');
   if (!file) { $('error').textContent='Выберите CSV-файл.'; $('error').classList.remove('hidden'); return; }
-  $('ask').disabled=true; $('ask').textContent='Считаю…';
+  $('ask').disabled=true; $('clear').disabled=true; $('ask').textContent='Анализирую…';
+  $('status').textContent='1/3 — Считаю показатели…'; $('status').classList.remove('hidden');
+  const searchTimer=setTimeout(()=>{$('status').textContent='2/3 — Ищу информацию в справочнике…';},700);
+  const modelTimer=setTimeout(()=>{$('status').textContent='3/3 — Ollama формирует ответ…';},1800);
   try {
     const previous=$('previous-report').files[0];
     const normalized=$('question').value.toLocaleLowerCase('ru');
@@ -83,6 +103,6 @@ $('ask').onclick = async () => {
     $('result').classList.remove('hidden');
     requestAnimationFrame(() => $('result').scrollIntoView({behavior:'smooth', block:'start'}));
   } catch(e) { $('error').textContent=e.message; $('error').classList.remove('hidden'); }
-  finally { $('ask').disabled=false; $('ask').textContent='Проанализировать'; }
+  finally { clearTimeout(searchTimer); clearTimeout(modelTimer); $('status').classList.add('hidden'); $('ask').disabled=false; $('clear').disabled=false; $('ask').textContent='Проанализировать'; }
 };
 </script></main></body></html>"""

@@ -253,6 +253,9 @@ async def test_marketplace_ui_is_available(tmp_path: Path) -> None:
     assert "AI-помощник аналитика" in response.text
     assert "/v1/marketplace/chat-upload" in response.text
     assert "scrollIntoView" in response.text
+    assert "Предыдущий период — было" in response.text
+    assert "Ollama формирует ответ" in response.text
+    assert 'id="clear"' in response.text
 
 
 async def test_marketplace_upload_is_analyzed_in_memory(tmp_path: Path) -> None:
