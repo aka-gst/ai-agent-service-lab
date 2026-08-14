@@ -8,6 +8,7 @@ from agent_lab.marketplace_assistant import (
     answer_marketplace_comparison_question,
     answer_marketplace_question,
     answer_marketplace_upload_question,
+    filter_retrieved_for_analysis,
     validate_knowledge_sources,
 )
 from agent_lab.rag import Chunk, RagIndex, SearchResult
@@ -54,6 +55,23 @@ def test_chat_rejects_hallucinated_knowledge_source() -> None:
 
     with pytest.raises(RuntimeError, match="не было в справочнике"):
         validate_knowledge_sources(["invented.md#Раздел"], retrieved)
+
+
+def test_retrieval_filter_keeps_only_relevant_returns_section() -> None:
+    retrieved = [
+        SearchResult("guide.md#Доля возвратов", "Возвраты", 0.9),
+        SearchResult("guide.md#Процент выкупа", "Выкуп", 0.8),
+    ]
+
+    filtered = filter_retrieved_for_analysis(retrieved, "returns")
+
+    assert [item.source for item in filtered] == ["guide.md#Доля возвратов"]
+
+
+def test_retrieval_filter_falls_back_when_expected_section_is_missing() -> None:
+    retrieved = [SearchResult("custom.md#Метрика", "Текст", 0.7)]
+
+    assert filter_retrieved_for_analysis(retrieved, "returns") == retrieved
 
 
 def test_uploaded_chat_keeps_filename_as_data_source(

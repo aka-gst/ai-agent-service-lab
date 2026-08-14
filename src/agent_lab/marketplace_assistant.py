@@ -57,6 +57,23 @@ def validate_knowledge_sources(
         )
 
 
+def filter_retrieved_for_analysis(
+    retrieved: list[SearchResult], analysis_type: str
+) -> list[SearchResult]:
+    """Убрать соседние, но нерелевантные разделы справочника."""
+
+    headings = {
+        "buyout": "#Процент выкупа",
+        "returns": "#Доля возвратов",
+        "comparison": "#Сравнение периодов",
+    }
+    heading = headings.get(analysis_type)
+    if heading is None:
+        return retrieved
+    relevant = [item for item in retrieved if item.source.endswith(heading)]
+    return relevant or retrieved
+
+
 def answer_marketplace_question(
     question: str,
     report_path: Path,
@@ -139,6 +156,7 @@ def explain_marketplace_analysis(
     )[0]
     with RagIndex(knowledge_db_path) as index:
         retrieved = index.search(query_embedding, top_k=top_k)
+    retrieved = filter_retrieved_for_analysis(retrieved, analysis.analysis_type)
 
     facts = "\n".join(f"- {fact}" for fact in analysis.facts)
     hypotheses = "\n".join(f"- {item}" for item in analysis.possible_causes)
@@ -216,6 +234,7 @@ def answer_marketplace_comparison_question(
     )[0]
     with RagIndex(knowledge_db_path) as index:
         retrieved = index.search(query_embedding, top_k=top_k)
+    retrieved = filter_retrieved_for_analysis(retrieved, "comparison")
 
     facts = "\n".join(f"- {fact}" for fact in comparison.facts)
     hypotheses = "\n".join(f"- {item}" for item in comparison.possible_causes)

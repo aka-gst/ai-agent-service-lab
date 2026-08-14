@@ -15,7 +15,7 @@
 - evaluation-набор: 6/6 сценариев, retrieval hit rate 100%;
 - FastAPI, API-key guard, Docker Compose и health checks;
 - backup/restore с SHA-256 и защита от path traversal;
-- 66 автоматических тестов;
+- 68 автоматических тестов;
 - первый модуль помощника аналитика маркетплейса на искусственном CSV.
 
 ## Архитектура
