@@ -7,7 +7,7 @@ MARKETPLACE_UI = """<!doctype html>
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Помощник аналитика маркетплейса</title>
   <style>
-    :root { color-scheme: dark; font-family: Inter, system-ui, sans-serif; }
+    :root { color-scheme: dark; font-family: Inter, system-ui, sans-serif; scroll-behavior: smooth; }
     * { box-sizing: border-box; }
     body { margin: 0; background: #0b1020; color: #edf1ff; }
     main { max-width: 980px; margin: auto; padding: 48px 20px; }
@@ -78,6 +78,7 @@ $('ask').onclick = async () => {
     $('answer').textContent=data.answer; fill('facts',data.facts); fill('causes',data.possible_causes); fill('missing',data.missing_data);
     $('metrics').innerHTML=data.metrics.map(m=>{ if(data.analysis_type==='comparison'){const warn=m.change_pp<0; return `<div class="metric ${warn?'warn':''}"><span>${escapeHtml(m.product)}</span><strong>${m.change_pp>0?'+':''}${m.change_pp} п.п.</strong><small>${m.previous_buyout_rate}% → ${m.current_buyout_rate}%</small></div>`;} const returns=data.analysis_type==='returns'; const rate=returns?m.return_rate:m.buyout_rate; const warn=returns?rate>Number($('return-threshold').value):rate<Number($('threshold').value); const detail=returns?`${m.returned} из ${m.bought} выкупленных`:`${m.bought} из ${m.ordered}`; return `<div class="metric ${warn?'warn':''}"><span>${escapeHtml(m.product)}</span><strong>${rate}%</strong><small>${detail}</small></div>`; }).join('');
     $('result').classList.remove('hidden');
+    requestAnimationFrame(() => $('result').scrollIntoView({behavior:'smooth', block:'start'}));
   } catch(e) { $('error').textContent=e.message; $('error').classList.remove('hidden'); }
   finally { $('ask').disabled=false; $('ask').textContent='Проанализировать'; }
 };

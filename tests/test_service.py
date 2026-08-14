@@ -216,6 +216,7 @@ async def test_marketplace_ui_is_available(tmp_path: Path) -> None:
     assert response.status_code == 200
     assert "AI-помощник аналитика" in response.text
     assert "/v1/marketplace/chat-upload" in response.text
+    assert "scrollIntoView" in response.text
 
 
 async def test_marketplace_upload_is_analyzed_in_memory(tmp_path: Path) -> None:
