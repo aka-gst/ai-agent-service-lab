@@ -4,7 +4,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     OLLAMA_BASE_URL=http://host.docker.internal:11434 \
     RAG_DB_PATH=/app/data/private/rag.sqlite3 \
-    MARKETPLACE_REPORTS_PATH=/app/data/demo/marketplace
+    MARKETPLACE_REPORTS_PATH=/app/data/demo/marketplace \
+    MARKETPLACE_KNOWLEDGE_DB_PATH=/app/data/private/marketplace-rag.sqlite3
 
 WORKDIR /app
 

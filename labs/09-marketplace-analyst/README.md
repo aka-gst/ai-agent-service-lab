@@ -45,3 +45,23 @@ curl -X POST http://127.0.0.1:8000/v1/marketplace/ask \
 ```
 
 На этом этапе API намеренно поддерживает только вопросы о выкупе. Неизвестные виды анализа отклоняются, а доступ к файлам ограничен папкой `MARKETPLACE_REPORTS_PATH`.
+
+## RAG и диалоговое объяснение
+
+Один раз постройте отдельный индекс справочника:
+
+```bash
+uv run python -m agent_lab.rag index \
+  --docs data/demo/marketplace \
+  --db data/private/marketplace-rag.sqlite3
+```
+
+После этого `/v1/marketplace/chat` объединит три части: точный расчёт Python, найденный фрагмент справочника и понятное объяснение Ollama.
+
+```bash
+curl -X POST http://127.0.0.1:8000/v1/marketplace/chat \
+  -H 'Content-Type: application/json' \
+  -d '{"question":"Почему процент выкупа маленький?","report":"sales-report.csv"}'
+```
+
+Модель не получает права менять рассчитанные метрики, а указанные ею источники проверяются по результатам RAG-поиска.

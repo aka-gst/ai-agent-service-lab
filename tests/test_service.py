@@ -5,6 +5,8 @@ from httpx import ASGITransport, AsyncClient
 
 import agent_lab.service as service
 from agent_lab.rag import RagAnswer, SearchResult
+from agent_lab.marketplace_analytics import AnalyticsAnswer
+from agent_lab.marketplace_assistant import MarketplaceChatAnswer
 from agent_lab.service import Settings, create_app
 from agent_lab.structured_output import SupportTicket
 
@@ -21,6 +23,7 @@ def make_app(tmp_path: Path, api_key: str | None = None):
     settings = Settings(
         rag_db_path=tmp_path / "rag.sqlite3",
         marketplace_reports_path=tmp_path,
+        marketplace_knowledge_db_path=tmp_path / "marketplace-rag.sqlite3",
         api_key=api_key,
     )
     return create_app(settings)
@@ -172,3 +175,36 @@ async def test_marketplace_endpoint_does_not_fake_unsupported_analysis(
 
     assert response.status_code == 422
     assert "только о проценте выкупа" in response.json()["detail"]
+
+
+async def test_marketplace_chat_endpoint(monkeypatch, tmp_path: Path) -> None:
+    (tmp_path / "report.csv").write_text(
+        "product,ordered,bought,returned\nТовар,10,6,1\n", encoding="utf-8"
+    )
+    analysis = AnalyticsAnswer(
+        answer="Есть отклонение.",
+        facts=["Выкуп 60%."],
+        possible_causes=[],
+        missing_data=[],
+        metrics=[],
+        sources=["report.csv"],
+    )
+    monkeypatch.setattr(
+        service,
+        "answer_marketplace_question",
+        lambda *_args, **_kwargs: MarketplaceChatAnswer(
+            explanation="Причина не доказана.",
+            analysis=analysis,
+            knowledge_sources=["metrics-guide.md#Процент выкупа"],
+        ),
+    )
+
+    response = await send_request(
+        tmp_path,
+        "POST",
+        "/v1/marketplace/chat",
+        json={"question": "Почему низкий выкуп?", "report": "report.csv"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["explanation"] == "Причина не доказана."

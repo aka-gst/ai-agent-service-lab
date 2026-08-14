@@ -15,6 +15,10 @@ from fastapi.security import APIKeyHeader
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from agent_lab.marketplace_analytics import AnalyticsAnswer, analyze_low_buyout
+from agent_lab.marketplace_assistant import (
+    MarketplaceChatAnswer,
+    answer_marketplace_question,
+)
 from agent_lab.rag import DEFAULT_DB_PATH, answer_question
 from agent_lab.structured_output import SupportTicket, classify_ticket
 
@@ -29,6 +33,7 @@ class Settings:
     embedding_model: str = "qwen3-embedding:0.6b"
     rag_db_path: Path = DEFAULT_DB_PATH
     marketplace_reports_path: Path = Path("data/demo/marketplace")
+    marketplace_knowledge_db_path: Path = Path("data/private/marketplace-rag.sqlite3")
     api_key: str | None = None
 
     @classmethod
@@ -41,6 +46,12 @@ class Settings:
             marketplace_reports_path=Path(
                 os.getenv(
                     "MARKETPLACE_REPORTS_PATH", str(cls.marketplace_reports_path)
+                )
+            ),
+            marketplace_knowledge_db_path=Path(
+                os.getenv(
+                    "MARKETPLACE_KNOWLEDGE_DB_PATH",
+                    str(cls.marketplace_knowledge_db_path),
                 )
             ),
             api_key=os.getenv("SERVICE_API_KEY") or None,
@@ -203,6 +214,31 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             return analyze_low_buyout(report, low_threshold=request.low_threshold)
         except ValueError as error:
             raise HTTPException(status_code=422, detail=str(error)) from error
+
+    @app.post(
+        "/v1/marketplace/chat",
+        response_model=MarketplaceChatAnswer,
+        dependencies=[Depends(authorize)],
+    )
+    def marketplace_chat(request: MarketplaceQuestionRequest) -> MarketplaceChatAnswer:
+        if not is_buyout_question(request.question):
+            raise HTTPException(
+                status_code=422,
+                detail="Пока поддерживаются вопросы только о проценте выкупа.",
+            )
+        try:
+            report = resolve_report(config.marketplace_reports_path, request.report)
+            return answer_marketplace_question(
+                request.question,
+                report,
+                config.marketplace_knowledge_db_path,
+                low_threshold=request.low_threshold,
+                embedding_model=config.embedding_model,
+                chat_model=config.chat_model,
+                base_url=config.ollama_base_url,
+            )
+        except (RuntimeError, ValueError, ValidationError) as error:
+            raise HTTPException(status_code=502, detail=str(error)) from error
 
     return app
 
