@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import json
 import os
+import secrets
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.error import URLError
 from urllib.request import urlopen
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
+from fastapi.security import APIKeyHeader
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from agent_lab.rag import DEFAULT_DB_PATH, answer_question
@@ -25,6 +27,7 @@ class Settings:
     chat_model: str = "qwen3:8b"
     embedding_model: str = "qwen3-embedding:0.6b"
     rag_db_path: Path = DEFAULT_DB_PATH
+    api_key: str | None = None
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -33,6 +36,7 @@ class Settings:
             chat_model=os.getenv("CHAT_MODEL", cls.chat_model),
             embedding_model=os.getenv("EMBEDDING_MODEL", cls.embedding_model),
             rag_db_path=Path(os.getenv("RAG_DB_PATH", str(cls.rag_db_path))),
+            api_key=os.getenv("SERVICE_API_KEY") or None,
         )
 
 
@@ -82,6 +86,14 @@ def ollama_is_ready(base_url: str, timeout: float = 2) -> bool:
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     config = settings or Settings.from_env()
+    api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+
+    def authorize(api_key: str | None = Depends(api_key_header)) -> None:
+        if config.api_key is None:
+            return
+        if api_key is None or not secrets.compare_digest(api_key, config.api_key):
+            raise HTTPException(status_code=401, detail="Invalid or missing API key")
+
     app = FastAPI(
         title="AI Agent Service Lab",
         version=SERVICE_VERSION,
@@ -103,7 +115,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             rag_index=rag_ready,
         )
 
-    @app.post("/v1/tickets/classify", response_model=SupportTicket)
+    @app.post(
+        "/v1/tickets/classify",
+        response_model=SupportTicket,
+        dependencies=[Depends(authorize)],
+    )
     def classify(request: ClassifyRequest) -> SupportTicket:
         try:
             return classify_ticket(
@@ -114,7 +130,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         except (RuntimeError, ValidationError) as error:
             raise HTTPException(status_code=502, detail=str(error)) from error
 
-    @app.post("/v1/rag/ask", response_model=RagResponse)
+    @app.post(
+        "/v1/rag/ask",
+        response_model=RagResponse,
+        dependencies=[Depends(authorize)],
+    )
     def rag_ask(request: RagRequest) -> RagResponse:
         try:
             answer, retrieved = answer_question(

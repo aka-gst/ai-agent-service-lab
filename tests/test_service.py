@@ -17,13 +17,15 @@ def anyio_backend():
     return "asyncio"
 
 
-def make_app(tmp_path: Path):
-    settings = Settings(rag_db_path=tmp_path / "rag.sqlite3")
+def make_app(tmp_path: Path, api_key: str | None = None):
+    settings = Settings(rag_db_path=tmp_path / "rag.sqlite3", api_key=api_key)
     return create_app(settings)
 
 
-async def send_request(tmp_path: Path, method: str, url: str, **kwargs):
-    transport = ASGITransport(app=make_app(tmp_path))
+async def send_request(
+    tmp_path: Path, method: str, url: str, *, api_key: str | None = None, **kwargs
+):
+    transport = ASGITransport(app=make_app(tmp_path, api_key=api_key))
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         return await client.request(method, url, **kwargs)
 
@@ -96,3 +98,24 @@ async def test_request_rejects_extra_fields(tmp_path: Path) -> None:
     )
 
     assert response.status_code == 422
+
+
+async def test_protected_endpoint_rejects_missing_api_key(tmp_path: Path) -> None:
+    response = await send_request(
+        tmp_path,
+        "POST",
+        "/v1/rag/ask",
+        api_key="expected-secret",
+        json={"question": "Стоимость?"},
+    )
+
+    assert response.status_code == 401
+    assert "expected-secret" not in response.text
+
+
+async def test_health_does_not_require_configured_api_key(tmp_path: Path) -> None:
+    response = await send_request(
+        tmp_path, "GET", "/health", api_key="expected-secret"
+    )
+
+    assert response.status_code == 200

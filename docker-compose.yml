@@ -6,6 +6,7 @@ services:
     environment:
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       RAG_DB_PATH: /app/data/private/rag.sqlite3
+      SERVICE_API_KEY: ${SERVICE_API_KEY:-}
     volumes:
       - ./data/private:/app/data/private
     restart: unless-stopped
