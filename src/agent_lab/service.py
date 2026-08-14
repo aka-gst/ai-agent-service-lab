@@ -31,6 +31,7 @@ from agent_lab.marketplace_assistant import (
     answer_marketplace_upload_question,
 )
 from agent_lab.marketplace_ui import MARKETPLACE_UI
+from agent_lab.portal_copilot import PortalAnswer, answer_portal_question
 from agent_lab.rag import DEFAULT_DB_PATH, answer_question
 from agent_lab.structured_output import SupportTicket, classify_ticket
 
@@ -126,6 +127,11 @@ class MarketplaceComparisonRequest(StrictModel):
     previous_csv_text: str = Field(min_length=1, max_length=5_000_000)
     current_filename: str = Field(min_length=1, max_length=255)
     current_csv_text: str = Field(min_length=1, max_length=5_000_000)
+
+
+class PortalQuestionRequest(StrictModel):
+    question: str = Field(min_length=1, max_length=2_000)
+    current_page_id: str | None = Field(default=None, max_length=100)
 
 
 def resolve_report(reports_path: Path, filename: str) -> Path:
@@ -373,6 +379,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             )
         except (RuntimeError, ValueError, ValidationError) as error:
             raise HTTPException(status_code=502, detail=str(error)) from error
+
+    @app.post(
+        "/v1/portal/ask",
+        response_model=PortalAnswer,
+        dependencies=[Depends(authorize)],
+    )
+    def portal_ask(request: PortalQuestionRequest) -> PortalAnswer:
+        return answer_portal_question(
+            request.question, current_page_id=request.current_page_id
+        )
 
     return app
 

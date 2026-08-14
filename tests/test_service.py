@@ -397,3 +397,19 @@ async def test_marketplace_compare_chat_upload_endpoint(
 
     assert response.status_code == 200
     assert response.json()["explanation"] == "AI объяснил падение."
+
+
+async def test_portal_endpoint_uses_current_page_context(tmp_path: Path) -> None:
+    response = await send_request(
+        tmp_path,
+        "POST",
+        "/v1/portal/ask",
+        json={
+            "question": "Как считается этот показатель?",
+            "current_page_id": "sales_funnel",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["current_page"] == "Воронка продаж"
+    assert response.json()["needs_knowledge"] is True
