@@ -34,6 +34,7 @@ from agent_lab.marketplace_ui import MARKETPLACE_UI
 from agent_lab.portal_copilot import PortalAnswer, answer_portal_question
 from agent_lab.rag import DEFAULT_DB_PATH, answer_question
 from agent_lab.structured_output import SupportTicket, classify_ticket
+from agent_lab.wb_api import ANALYTICS_BASE_URL
 
 
 SERVICE_VERSION = "0.1.0"
@@ -48,6 +49,8 @@ class Settings:
     marketplace_reports_path: Path = Path("data/demo/marketplace")
     marketplace_knowledge_db_path: Path = Path("data/private/marketplace-rag.sqlite3")
     api_key: str | None = None
+    wb_api_token: str | None = None
+    wb_analytics_base_url: str = ANALYTICS_BASE_URL
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -68,6 +71,10 @@ class Settings:
                 )
             ),
             api_key=os.getenv("SERVICE_API_KEY") or None,
+            wb_api_token=os.getenv("WB_API_TOKEN") or None,
+            wb_analytics_base_url=os.getenv(
+                "WB_ANALYTICS_BASE_URL", cls.wb_analytics_base_url
+            ),
         )
 
 
@@ -84,6 +91,12 @@ class ReadinessResponse(StrictModel):
     status: str
     ollama: bool
     rag_index: bool
+
+
+class WbIntegrationStatus(StrictModel):
+    configured: bool
+    access: str
+    token_exposed: bool = False
 
 
 class ClassifyRequest(StrictModel):
@@ -211,6 +224,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             status=status,
             ollama=ollama_ready,
             rag_index=rag_ready,
+        )
+
+    @app.get(
+        "/v1/integrations/wb/status",
+        response_model=WbIntegrationStatus,
+        dependencies=[Depends(authorize)],
+    )
+    def wb_integration_status() -> WbIntegrationStatus:
+        return WbIntegrationStatus(
+            configured=config.wb_api_token is not None,
+            access="read-only analytics",
         )
 
     @app.post(

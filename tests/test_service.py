@@ -57,6 +57,26 @@ async def test_ready_reports_missing_dependencies(monkeypatch, tmp_path: Path) -
     }
 
 
+async def test_wb_status_does_not_expose_token(tmp_path: Path) -> None:
+    settings = Settings(
+        rag_db_path=tmp_path / "rag.sqlite3",
+        marketplace_reports_path=tmp_path,
+        marketplace_knowledge_db_path=tmp_path / "marketplace-rag.sqlite3",
+        wb_api_token="very-secret-token",
+    )
+    transport = ASGITransport(app=create_app(settings))
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get("/v1/integrations/wb/status")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "configured": True,
+        "access": "read-only analytics",
+        "token_exposed": False,
+    }
+    assert "very-secret-token" not in response.text
+
+
 async def test_classify_endpoint(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setattr(
         service,
