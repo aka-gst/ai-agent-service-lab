@@ -44,6 +44,7 @@ MARKETPLACE_UI = """<!doctype html>
     <p id="error" class="error hidden"></p>
   </section>
   <section id="result" class="hidden">
+    <div class="panel"><h2>Объяснение AI</h2><p id="explanation"></p><p><small id="knowledge"></small></p></div>
     <div class="panel"><h2>Вывод</h2><p id="answer"></p></div>
     <div class="panel"><h2>Показатели</h2><div id="metrics" class="grid"></div></div>
     <div class="panel"><h2>Что известно точно</h2><ul id="facts"></ul></div>
@@ -61,8 +62,11 @@ $('ask').onclick = async () => {
   if (!file) { $('error').textContent='Выберите CSV-файл.'; $('error').classList.remove('hidden'); return; }
   $('ask').disabled=true; $('ask').textContent='Считаю…';
   try {
-    const response = await fetch('/v1/marketplace/analyze-upload', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({question:$('question').value, filename:file.name, csv_text:await file.text(), low_threshold:Number($('threshold').value)})});
-    const data=await response.json(); if(!response.ok) throw new Error(data.detail || 'Ошибка анализа');
+    const response = await fetch('/v1/marketplace/chat-upload', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({question:$('question').value, filename:file.name, csv_text:await file.text(), low_threshold:Number($('threshold').value)})});
+    const payload=await response.json(); if(!response.ok) throw new Error(payload.detail || 'Ошибка анализа');
+    const data=payload.analysis;
+    $('explanation').textContent=payload.explanation;
+    $('knowledge').textContent='Справочник: '+payload.knowledge_sources.join(', ');
     $('answer').textContent=data.answer; fill('facts',data.facts); fill('causes',data.possible_causes); fill('missing',data.missing_data);
     $('metrics').innerHTML=data.metrics.map(m=>`<div class="metric ${m.buyout_rate < Number($('threshold').value) ? 'warn':''}"><span>${escapeHtml(m.product)}</span><strong>${m.buyout_rate}%</strong><small>${m.bought} из ${m.ordered}</small></div>`).join('');
     $('result').classList.remove('hidden');

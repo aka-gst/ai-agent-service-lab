@@ -6,7 +6,11 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict
 
-from agent_lab.marketplace_analytics import AnalyticsAnswer, analyze_low_buyout
+from agent_lab.marketplace_analytics import (
+    AnalyticsAnswer,
+    analyze_low_buyout,
+    analyze_low_buyout_text,
+)
 from agent_lab.rag import (
     DEFAULT_CHAT_MODEL,
     DEFAULT_EMBED_MODEL,
@@ -57,6 +61,57 @@ def answer_marketplace_question(
     """Рассчитать метрики, найти справку и попросить LLM только объяснить факты."""
 
     analysis = analyze_low_buyout(report_path, low_threshold=low_threshold)
+    return explain_marketplace_analysis(
+        question,
+        analysis,
+        knowledge_db_path,
+        embedding_model=embedding_model,
+        chat_model=chat_model,
+        base_url=base_url,
+        top_k=top_k,
+    )
+
+
+def answer_marketplace_upload_question(
+    question: str,
+    csv_text: str,
+    filename: str,
+    knowledge_db_path: Path,
+    *,
+    low_threshold: float = 70,
+    embedding_model: str = DEFAULT_EMBED_MODEL,
+    chat_model: str = DEFAULT_CHAT_MODEL,
+    base_url: str = "http://127.0.0.1:11434",
+    top_k: int = 2,
+) -> MarketplaceChatAnswer:
+    """Проанализировать загруженный CSV в памяти и объяснить результат."""
+
+    analysis = analyze_low_buyout_text(
+        csv_text, filename=filename, low_threshold=low_threshold
+    )
+    return explain_marketplace_analysis(
+        question,
+        analysis,
+        knowledge_db_path,
+        embedding_model=embedding_model,
+        chat_model=chat_model,
+        base_url=base_url,
+        top_k=top_k,
+    )
+
+
+def explain_marketplace_analysis(
+    question: str,
+    analysis: AnalyticsAnswer,
+    knowledge_db_path: Path,
+    *,
+    embedding_model: str = DEFAULT_EMBED_MODEL,
+    chat_model: str = DEFAULT_CHAT_MODEL,
+    base_url: str = "http://127.0.0.1:11434",
+    top_k: int = 2,
+) -> MarketplaceChatAnswer:
+    """Добавить к готовому расчёту RAG-контекст и объяснение модели."""
+
     query = f"Instruct: найди определение показателя и ограничения анализа.\nQuery: {question}"
     query_embedding = embed_texts(
         [query], model=embedding_model, base_url=base_url

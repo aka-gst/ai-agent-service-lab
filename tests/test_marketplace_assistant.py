@@ -6,6 +6,7 @@ import agent_lab.marketplace_assistant as assistant
 from agent_lab.marketplace_assistant import (
     MarketplaceExplanation,
     answer_marketplace_question,
+    answer_marketplace_upload_question,
     validate_knowledge_sources,
 )
 from agent_lab.rag import Chunk, RagIndex, SearchResult
@@ -52,3 +53,38 @@ def test_chat_rejects_hallucinated_knowledge_source() -> None:
 
     with pytest.raises(RuntimeError, match="не было в справочнике"):
         validate_knowledge_sources(["invented.md#Раздел"], retrieved)
+
+
+def test_uploaded_chat_keeps_filename_as_data_source(
+    monkeypatch, tmp_path: Path
+) -> None:
+    db = tmp_path / "knowledge.sqlite3"
+    with RagIndex(db) as index:
+        index.replace(
+            [Chunk("guide.md#Выкуп", "Определение")],
+            [[1.0]],
+            "test",
+        )
+    monkeypatch.setattr(assistant, "embed_texts", lambda *_args, **_kwargs: [[1.0]])
+    monkeypatch.setattr(
+        assistant,
+        "post_json",
+        lambda *_args, **_kwargs: {
+            "message": {
+                "content": MarketplaceExplanation(
+                    explanation="Проверенное объяснение.",
+                    knowledge_sources=["guide.md#Выкуп"],
+                ).model_dump_json()
+            }
+        },
+    )
+
+    answer = answer_marketplace_upload_question(
+        "Почему выкуп низкий?",
+        "product,ordered,bought,returned\nТовар,10,5,1\n",
+        "browser.csv",
+        db,
+    )
+
+    assert answer.analysis.sources == ["browser.csv"]
+    assert answer.analysis.metrics[0].buyout_rate == 50

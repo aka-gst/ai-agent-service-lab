@@ -215,7 +215,7 @@ async def test_marketplace_ui_is_available(tmp_path: Path) -> None:
 
     assert response.status_code == 200
     assert "AI-помощник аналитика" in response.text
-    assert "/v1/marketplace/analyze-upload" in response.text
+    assert "/v1/marketplace/chat-upload" in response.text
 
 
 async def test_marketplace_upload_is_analyzed_in_memory(tmp_path: Path) -> None:
@@ -233,3 +233,37 @@ async def test_marketplace_upload_is_analyzed_in_memory(tmp_path: Path) -> None:
     assert response.status_code == 200
     assert response.json()["metrics"][0]["buyout_rate"] == 50
     assert response.json()["sources"] == ["my-report.csv"]
+
+
+async def test_marketplace_chat_upload_endpoint(monkeypatch, tmp_path: Path) -> None:
+    analysis = AnalyticsAnswer(
+        answer="Есть отклонение.",
+        facts=["Выкуп 50%."],
+        possible_causes=[],
+        missing_data=[],
+        metrics=[],
+        sources=["upload.csv"],
+    )
+    monkeypatch.setattr(
+        service,
+        "answer_marketplace_upload_question",
+        lambda *_args, **_kwargs: MarketplaceChatAnswer(
+            explanation="Модель объяснила расчёт.",
+            analysis=analysis,
+            knowledge_sources=["guide.md#Выкуп"],
+        ),
+    )
+
+    response = await send_request(
+        tmp_path,
+        "POST",
+        "/v1/marketplace/chat-upload",
+        json={
+            "question": "Почему выкуп низкий?",
+            "filename": "upload.csv",
+            "csv_text": "product,ordered,bought,returned\nТовар,10,5,1\n",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["explanation"] == "Модель объяснила расчёт."

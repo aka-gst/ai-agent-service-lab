@@ -23,6 +23,7 @@ from agent_lab.marketplace_analytics import (
 from agent_lab.marketplace_assistant import (
     MarketplaceChatAnswer,
     answer_marketplace_question,
+    answer_marketplace_upload_question,
 )
 from agent_lab.marketplace_ui import MARKETPLACE_UI
 from agent_lab.rag import DEFAULT_DB_PATH, answer_question
@@ -270,6 +271,33 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             return answer_marketplace_question(
                 request.question,
                 report,
+                config.marketplace_knowledge_db_path,
+                low_threshold=request.low_threshold,
+                embedding_model=config.embedding_model,
+                chat_model=config.chat_model,
+                base_url=config.ollama_base_url,
+            )
+        except (RuntimeError, ValueError, ValidationError) as error:
+            raise HTTPException(status_code=502, detail=str(error)) from error
+
+    @app.post(
+        "/v1/marketplace/chat-upload",
+        response_model=MarketplaceChatAnswer,
+        dependencies=[Depends(authorize)],
+    )
+    def marketplace_chat_upload(
+        request: MarketplaceUploadRequest,
+    ) -> MarketplaceChatAnswer:
+        if not is_buyout_question(request.question):
+            raise HTTPException(
+                status_code=422,
+                detail="Пока поддерживаются вопросы только о проценте выкупа.",
+            )
+        try:
+            return answer_marketplace_upload_question(
+                request.question,
+                request.csv_text,
+                request.filename,
                 config.marketplace_knowledge_db_path,
                 low_threshold=request.low_threshold,
                 embedding_model=config.embedding_model,
