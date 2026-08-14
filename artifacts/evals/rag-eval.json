@@ -1,0 +1,125 @@
+{
+  "created_at": "2026-08-14T20:20:43.498671+00:00",
+  "total": 6,
+  "passed": 6,
+  "failed": 0,
+  "pass_rate": 1.0,
+  "retrieval_total": 5,
+  "retrieval_passed": 5,
+  "retrieval_hit_rate": 1.0,
+  "average_latency_seconds": 2.6365000000000003,
+  "cases": [
+    {
+      "id": "delivery_price_below_threshold",
+      "question": "Сколько стоит доставка заказа на 4 000 рублей?",
+      "answer": "Стоимость доставки составляет 490 рублей.",
+      "sources": [
+        "delivery.md#Стоимость"
+      ],
+      "retrieved_sources": [
+        "delivery.md#Стоимость",
+        "delivery.md#Сроки",
+        "delivery.md#Отслеживание"
+      ],
+      "source_pass": true,
+      "answer_pass": true,
+      "retrieval_pass": true,
+      "passed": true,
+      "latency_seconds": 2.117,
+      "error": null
+    },
+    {
+      "id": "delivery_time_moscow",
+      "question": "Как быстро доставят заказ по Москве?",
+      "answer": "Доставка по Москве занимает 1–2 рабочих дня после подтверждения заказа.",
+      "sources": [
+        "delivery.md#Сроки"
+      ],
+      "retrieved_sources": [
+        "delivery.md#Сроки",
+        "delivery.md#Стоимость",
+        "delivery.md#Отслеживание"
+      ],
+      "source_pass": true,
+      "answer_pass": true,
+      "retrieval_pass": true,
+      "passed": true,
+      "latency_seconds": 3.049,
+      "error": null
+    },
+    {
+      "id": "return_window",
+      "question": "В течение какого срока можно вернуть неиспользованный товар?",
+      "answer": "В течение 14 календарных дней после получения.",
+      "sources": [
+        "returns.md#Срок возврата"
+      ],
+      "retrieved_sources": [
+        "returns.md#Срок возврата",
+        "returns.md#Возврат денег",
+        "returns.md#Стоимость обратной доставки"
+      ],
+      "source_pass": true,
+      "answer_pass": true,
+      "retrieval_pass": true,
+      "passed": true,
+      "latency_seconds": 2.289,
+      "error": null
+    },
+    {
+      "id": "refund_time",
+      "question": "Когда вернут деньги после проверки товара?",
+      "answer": "Деньги возвращаются исходным способом оплаты в течение 5–10 рабочих дней.",
+      "sources": [
+        "returns.md#Возврат денег"
+      ],
+      "retrieved_sources": [
+        "returns.md#Возврат денег",
+        "returns.md#Срок возврата",
+        "returns.md#Стоимость обратной доставки"
+      ],
+      "source_pass": true,
+      "answer_pass": true,
+      "retrieval_pass": true,
+      "passed": true,
+      "latency_seconds": 3.157,
+      "error": null
+    },
+    {
+      "id": "weekend_support",
+      "question": "Отвечают ли операторы службы поддержки в выходные?",
+      "answer": "В выходные операторы службы поддержки отвечают только через автоматическую обработку обращений.",
+      "sources": [
+        "support.md#Время работы"
+      ],
+      "retrieved_sources": [
+        "support.md#Время работы",
+        "support.md#Каналы связи",
+        "returns.md#Срок возврата"
+      ],
+      "source_pass": true,
+      "answer_pass": true,
+      "retrieval_pass": true,
+      "passed": true,
+      "latency_seconds": 3.027,
+      "error": null
+    },
+    {
+      "id": "unknown_warranty",
+      "question": "Какой срок гарантии на ноутбук?",
+      "answer": "Гарантия на ноутбук не упоминается в предоставленных данных.",
+      "sources": [],
+      "retrieved_sources": [
+        "returns.md#Срок возврата",
+        "returns.md#Возврат денег",
+        "support.md#Время работы"
+      ],
+      "source_pass": true,
+      "answer_pass": true,
+      "retrieval_pass": null,
+      "passed": true,
+      "latency_seconds": 2.18,
+      "error": null
+    }
+  ]
+}

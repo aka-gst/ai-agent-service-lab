@@ -1,0 +1,11 @@
+services:
+  api:
+    build: .
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      RAG_DB_PATH: /app/data/private/rag.sqlite3
+    volumes:
+      - ./data/private:/app/data/private
+    restart: unless-stopped

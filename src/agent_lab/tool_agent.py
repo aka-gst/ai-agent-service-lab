@@ -56,6 +56,13 @@ TOOL_DEFINITIONS = [
     },
 ]
 
+SYSTEM_PROMPT = (
+    "Ты помощник демонстрационной службы заказов. "
+    "Используй инструменты для фактов и вычислений, не выдумывай их. "
+    "У тебя нет других инструментов. После получения результатов дай "
+    "краткий ответ на русском языке."
+)
+
 
 class ToolExecutionError(RuntimeError):
     """Модель запросила неизвестный инструмент или недопустимые аргументы."""
@@ -172,27 +179,39 @@ def run_agent(
     """Запускать модель и инструменты до ответа или достижения лимита."""
 
     messages: list[dict[str, object]] = [
-        {
-            "role": "system",
-            "content": (
-                "Ты помощник демонстрационной службы заказов. "
-                "Используй инструменты для фактов и вычислений, не выдумывай их. "
-                "У тебя нет других инструментов. После получения результатов дай "
-                "краткий ответ на русском языке."
-            ),
-        },
+        {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": task},
     ]
+    return run_agent_messages(
+        messages,
+        model=model,
+        base_url=base_url,
+        timeout=timeout,
+        max_steps=max_steps,
+    )
+
+
+def run_agent_messages(
+    messages: list[dict[str, object]],
+    *,
+    model: str = "qwen3:8b",
+    base_url: str = "http://127.0.0.1:11434",
+    timeout: float = 120,
+    max_steps: int = 4,
+) -> AgentResult:
+    """Продолжить agent loop с уже подготовленной историей сообщений."""
+
+    working_messages = [message.copy() for message in messages]
     events: list[ToolEvent] = []
 
     for step in range(1, max_steps + 1):
         assistant_message = chat(
-            messages,
+            working_messages,
             model=model,
             base_url=base_url,
             timeout=timeout,
         )
-        messages.append(assistant_message)
+        working_messages.append(assistant_message)
         tool_calls = assistant_message.get("tool_calls") or []
 
         if not isinstance(tool_calls, list):
@@ -215,7 +234,7 @@ def run_agent(
 
             result = execute_tool(name, arguments)
             events.append(ToolEvent(name=name, arguments=arguments, result=result))
-            messages.append(
+            working_messages.append(
                 {
                     "role": "tool",
                     "tool_name": name,

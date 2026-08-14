@@ -1,0 +1,39 @@
+[
+  {
+    "id": "delivery_price_below_threshold",
+    "question": "Сколько стоит доставка заказа на 4 000 рублей?",
+    "expected_sources": ["delivery.md#Стоимость"],
+    "required_terms": ["490"]
+  },
+  {
+    "id": "delivery_time_moscow",
+    "question": "Как быстро доставят заказ по Москве?",
+    "expected_sources": ["delivery.md#Сроки"],
+    "required_terms": ["1", "2", "рабоч"]
+  },
+  {
+    "id": "return_window",
+    "question": "В течение какого срока можно вернуть неиспользованный товар?",
+    "expected_sources": ["returns.md#Срок возврата"],
+    "required_terms": ["14", "календар"]
+  },
+  {
+    "id": "refund_time",
+    "question": "Когда вернут деньги после проверки товара?",
+    "expected_sources": ["returns.md#Возврат денег"],
+    "required_terms": ["5", "10", "рабоч"]
+  },
+  {
+    "id": "weekend_support",
+    "question": "Отвечают ли операторы службы поддержки в выходные?",
+    "expected_sources": ["support.md#Время работы"],
+    "required_terms": ["автомат"]
+  },
+  {
+    "id": "unknown_warranty",
+    "question": "Какой срок гарантии на ноутбук?",
+    "expected_sources": [],
+    "required_terms": [],
+    "expect_no_answer": true
+  }
+]

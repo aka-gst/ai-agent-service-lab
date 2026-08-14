@@ -4,11 +4,14 @@ version = "0.1.0"
 description = "Учебные лабораторные работы по созданию AI-агентов"
 requires-python = ">=3.12"
 dependencies = [
+    "fastapi>=0.116,<1",
     "pydantic>=2.11,<3",
+    "uvicorn>=0.35,<1",
 ]
 
 [dependency-groups]
 dev = [
+    "httpx>=0.28,<1",
     "pytest>=8,<9",
 ]
 
