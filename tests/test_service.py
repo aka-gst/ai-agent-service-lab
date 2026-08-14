@@ -323,3 +323,37 @@ async def test_marketplace_compare_upload_endpoint(tmp_path: Path) -> None:
 
     assert response.status_code == 200
     assert response.json()["metrics"][0]["change_pp"] == -30
+
+
+async def test_marketplace_compare_chat_upload_endpoint(
+    monkeypatch, tmp_path: Path
+) -> None:
+    from agent_lab.marketplace_analytics import ComparisonAnswer, PeriodComparisonMetric
+    from agent_lab.marketplace_assistant import MarketplaceComparisonChatAnswer
+
+    comparison = ComparisonAnswer(
+        answer="Падение.", facts=[], possible_causes=[], missing_data=[],
+        metrics=[PeriodComparisonMetric(product="Товар", previous_buyout_rate=80, current_buyout_rate=50, change_pp=-30)],
+        sources=["old.csv", "new.csv"],
+    )
+    monkeypatch.setattr(
+        service,
+        "answer_marketplace_comparison_question",
+        lambda *_args, **_kwargs: MarketplaceComparisonChatAnswer(
+            explanation="AI объяснил падение.", comparison=comparison,
+            knowledge_sources=["guide.md#Сравнение"],
+        ),
+    )
+    response = await send_request(
+        tmp_path, "POST", "/v1/marketplace/compare-chat-upload",
+        json={
+            "question": "Почему снизился выкуп?",
+            "previous_filename": "old.csv",
+            "previous_csv_text": "product,ordered,bought,returned\nТовар,10,8,1\n",
+            "current_filename": "new.csv",
+            "current_csv_text": "product,ordered,bought,returned\nТовар,10,5,1\n",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["explanation"] == "AI объяснил падение."

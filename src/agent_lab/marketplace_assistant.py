@@ -8,8 +8,10 @@ from pydantic import BaseModel, ConfigDict
 
 from agent_lab.marketplace_analytics import (
     AnalyticsAnswer,
+    ComparisonAnswer,
     analyze_marketplace_question_path,
     analyze_marketplace_question_text,
+    compare_periods_text,
 )
 from agent_lab.rag import (
     DEFAULT_CHAT_MODEL,
@@ -33,6 +35,14 @@ class MarketplaceChatAnswer(BaseModel):
 
     explanation: str
     analysis: AnalyticsAnswer
+    knowledge_sources: list[str]
+
+
+class MarketplaceComparisonChatAnswer(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    explanation: str
+    comparison: ComparisonAnswer
     knowledge_sources: list[str]
 
 
@@ -172,5 +182,82 @@ def explain_marketplace_analysis(
     return MarketplaceChatAnswer(
         explanation=explanation.explanation,
         analysis=analysis,
+        knowledge_sources=explanation.knowledge_sources,
+    )
+
+
+def answer_marketplace_comparison_question(
+    question: str,
+    previous_csv_text: str,
+    current_csv_text: str,
+    previous_filename: str,
+    current_filename: str,
+    knowledge_db_path: Path,
+    *,
+    embedding_model: str = DEFAULT_EMBED_MODEL,
+    chat_model: str = DEFAULT_CHAT_MODEL,
+    base_url: str = "http://127.0.0.1:11434",
+    top_k: int = 2,
+) -> MarketplaceComparisonChatAnswer:
+    """Сравнить периоды кодом и объяснить результат по RAG-справочнику."""
+
+    comparison = compare_periods_text(
+        previous_csv_text,
+        current_csv_text,
+        previous_filename=previous_filename,
+        current_filename=current_filename,
+    )
+    query = (
+        "Instruct: найди правила сравнения периодов и ограничения анализа.\n"
+        f"Query: {question}"
+    )
+    query_embedding = embed_texts(
+        [query], model=embedding_model, base_url=base_url
+    )[0]
+    with RagIndex(knowledge_db_path) as index:
+        retrieved = index.search(query_embedding, top_k=top_k)
+
+    facts = "\n".join(f"- {fact}" for fact in comparison.facts)
+    hypotheses = "\n".join(f"- {item}" for item in comparison.possible_causes)
+    missing = "\n".join(f"- {item}" for item in comparison.missing_data)
+    context = "\n\n".join(
+        f"SOURCE: {item.source}\n{item.content}" for item in retrieved
+    )
+    payload = {
+        "model": chat_model,
+        "messages": [
+            {
+                "role": "system",
+                "content": (
+                    "Ты помощник аналитика маркетплейса. Объясни сравнение периодов "
+                    "простым русским языком. Не меняй цифры и направление изменений. "
+                    "Не выдавай гипотезы за факты. Используй только FACTS и KNOWLEDGE. "
+                    "В knowledge_sources указывай только точные значения SOURCE."
+                ),
+            },
+            {
+                "role": "user",
+                "content": (
+                    f"QUESTION:\n{question}\n\nFACTS:\n{facts}\n\n"
+                    f"POSSIBLE CAUSES:\n{hypotheses}\n\nMISSING DATA:\n{missing}\n\n"
+                    f"KNOWLEDGE:\n{context}"
+                ),
+            },
+        ],
+        "stream": False,
+        "think": False,
+        "options": {"temperature": 0},
+        "format": MarketplaceExplanation.model_json_schema(),
+    }
+    response = post_json(f"{base_url}/api/chat", payload)
+    try:
+        content = response["message"]["content"]
+    except (KeyError, TypeError) as error:
+        raise RuntimeError("В ответе Ollama отсутствует message.content") from error
+    explanation = MarketplaceExplanation.model_validate_json(content)
+    validate_knowledge_sources(explanation.knowledge_sources, retrieved)
+    return MarketplaceComparisonChatAnswer(
+        explanation=explanation.explanation,
+        comparison=comparison,
         knowledge_sources=explanation.knowledge_sources,
     )

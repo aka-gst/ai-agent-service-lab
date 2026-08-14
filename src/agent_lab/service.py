@@ -25,6 +25,8 @@ from agent_lab.marketplace_analytics import (
 )
 from agent_lab.marketplace_assistant import (
     MarketplaceChatAnswer,
+    MarketplaceComparisonChatAnswer,
+    answer_marketplace_comparison_question,
     answer_marketplace_question,
     answer_marketplace_upload_question,
 )
@@ -329,6 +331,29 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             )
         except ValueError as error:
             raise HTTPException(status_code=422, detail=str(error)) from error
+
+    @app.post(
+        "/v1/marketplace/compare-chat-upload",
+        response_model=MarketplaceComparisonChatAnswer,
+        dependencies=[Depends(authorize)],
+    )
+    def marketplace_compare_chat_upload(
+        request: MarketplaceComparisonRequest,
+    ) -> MarketplaceComparisonChatAnswer:
+        try:
+            return answer_marketplace_comparison_question(
+                request.question,
+                request.previous_csv_text,
+                request.current_csv_text,
+                request.previous_filename,
+                request.current_filename,
+                config.marketplace_knowledge_db_path,
+                embedding_model=config.embedding_model,
+                chat_model=config.chat_model,
+                base_url=config.ollama_base_url,
+            )
+        except (RuntimeError, ValueError, ValidationError) as error:
+            raise HTTPException(status_code=502, detail=str(error)) from error
 
     return app
 

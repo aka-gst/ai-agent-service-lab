@@ -5,6 +5,7 @@ import pytest
 import agent_lab.marketplace_assistant as assistant
 from agent_lab.marketplace_assistant import (
     MarketplaceExplanation,
+    answer_marketplace_comparison_question,
     answer_marketplace_question,
     answer_marketplace_upload_question,
     validate_knowledge_sources,
@@ -88,3 +89,40 @@ def test_uploaded_chat_keeps_filename_as_data_source(
 
     assert answer.analysis.sources == ["browser.csv"]
     assert answer.analysis.metrics[0].buyout_rate == 50
+
+
+def test_comparison_chat_preserves_calculated_change(
+    monkeypatch, tmp_path: Path
+) -> None:
+    db = tmp_path / "knowledge.sqlite3"
+    with RagIndex(db) as index:
+        index.replace(
+            [Chunk("guide.md#Сравнение", "Изменение измеряется в п.п.")],
+            [[1.0]],
+            "test",
+        )
+    monkeypatch.setattr(assistant, "embed_texts", lambda *_args, **_kwargs: [[1.0]])
+    monkeypatch.setattr(
+        assistant,
+        "post_json",
+        lambda *_args, **_kwargs: {
+            "message": {
+                "content": MarketplaceExplanation(
+                    explanation="Кроссовки снизились на 30 п.п.",
+                    knowledge_sources=["guide.md#Сравнение"],
+                ).model_dump_json()
+            }
+        },
+    )
+
+    answer = answer_marketplace_comparison_question(
+        "Где снизился выкуп?",
+        "product,ordered,bought,returned\nКроссовки,50,40,2\n",
+        "product,ordered,bought,returned\nКроссовки,50,25,2\n",
+        "old.csv",
+        "new.csv",
+        db,
+    )
+
+    assert answer.comparison.metrics[0].change_pp == -30
+    assert answer.knowledge_sources == ["guide.md#Сравнение"]
