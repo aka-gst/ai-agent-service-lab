@@ -86,7 +86,7 @@ def test_return_question_finds_highest_return_rate() -> None:
 
 
 def test_unknown_question_is_rejected() -> None:
-    with pytest.raises(ValueError, match="выкупе и возвратах"):
+    with pytest.raises(ValueError, match="выкуп, возвраты и сравнение"):
         analyze_marketplace_question_text(
             "Почему упала прибыль?",
             "product,ordered,bought,returned\nТовар,10,5,1\n",

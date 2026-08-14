@@ -174,7 +174,43 @@ async def test_marketplace_endpoint_does_not_fake_unsupported_analysis(
     )
 
     assert response.status_code == 422
-    assert "выкупе и возвратах" in response.json()["detail"]
+    assert "выкуп, возвраты и сравнение" in response.json()["detail"]
+
+
+async def test_comparison_endpoint_rejects_unrelated_question(tmp_path: Path) -> None:
+    response = await send_request(
+        tmp_path,
+        "POST",
+        "/v1/marketplace/compare-upload",
+        json={
+            "question": "Какая сегодня погода?",
+            "previous_filename": "old.csv",
+            "previous_csv_text": "product,ordered,bought,returned\nТовар,10,8,1\n",
+            "current_filename": "new.csv",
+            "current_csv_text": "product,ordered,bought,returned\nТовар,10,5,1\n",
+        },
+    )
+
+    assert response.status_code == 422
+    assert "выкуп, возвраты и сравнение" in response.json()["detail"]
+
+
+async def test_single_report_endpoint_requires_two_files_for_comparison(
+    tmp_path: Path,
+) -> None:
+    response = await send_request(
+        tmp_path,
+        "POST",
+        "/v1/marketplace/analyze-upload",
+        json={
+            "question": "Почему показатель снизился за неделю?",
+            "filename": "report.csv",
+            "csv_text": "product,ordered,bought,returned\nТовар,10,5,1\n",
+        },
+    )
+
+    assert response.status_code == 422
+    assert "два CSV" in response.json()["detail"]
 
 
 async def test_marketplace_chat_endpoint(monkeypatch, tmp_path: Path) -> None:

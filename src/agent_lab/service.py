@@ -139,11 +139,28 @@ def resolve_report(reports_path: Path, filename: str) -> Path:
     return report
 
 
-def ensure_supported_question(question: str) -> None:
+def ensure_single_report_question(question: str) -> None:
     try:
-        question_type(question)
+        intent = question_type(question)
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
+    if intent == "comparison":
+        raise HTTPException(
+            status_code=422,
+            detail="Для сравнения периодов нужно загрузить два CSV-отчёта",
+        )
+
+
+def ensure_comparison_question(question: str) -> None:
+    try:
+        intent = question_type(question)
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    if intent != "comparison":
+        raise HTTPException(
+            status_code=422,
+            detail="Этот вопрос не относится к сравнению периодов",
+        )
 
 
 def ollama_is_ready(base_url: str, timeout: float = 2) -> bool:
@@ -236,7 +253,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         dependencies=[Depends(authorize)],
     )
     def marketplace_ask(request: MarketplaceQuestionRequest) -> AnalyticsAnswer:
-        ensure_supported_question(request.question)
+        ensure_single_report_question(request.question)
         try:
             report = resolve_report(config.marketplace_reports_path, request.report)
             return analyze_marketplace_question_path(
@@ -256,7 +273,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     def marketplace_analyze_upload(
         request: MarketplaceUploadRequest,
     ) -> AnalyticsAnswer:
-        ensure_supported_question(request.question)
+        ensure_single_report_question(request.question)
         try:
             return analyze_marketplace_question_text(
                 request.question,
@@ -274,7 +291,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         dependencies=[Depends(authorize)],
     )
     def marketplace_chat(request: MarketplaceQuestionRequest) -> MarketplaceChatAnswer:
-        ensure_supported_question(request.question)
+        ensure_single_report_question(request.question)
         try:
             report = resolve_report(config.marketplace_reports_path, request.report)
             return answer_marketplace_question(
@@ -298,7 +315,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     def marketplace_chat_upload(
         request: MarketplaceUploadRequest,
     ) -> MarketplaceChatAnswer:
-        ensure_supported_question(request.question)
+        ensure_single_report_question(request.question)
         try:
             return answer_marketplace_upload_question(
                 request.question,
@@ -322,6 +339,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     def marketplace_compare_upload(
         request: MarketplaceComparisonRequest,
     ) -> ComparisonAnswer:
+        ensure_comparison_question(request.question)
         try:
             return compare_periods_text(
                 request.previous_csv_text,
@@ -340,6 +358,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     def marketplace_compare_chat_upload(
         request: MarketplaceComparisonRequest,
     ) -> MarketplaceComparisonChatAnswer:
+        ensure_comparison_question(request.question)
         try:
             return answer_marketplace_comparison_question(
                 request.question,

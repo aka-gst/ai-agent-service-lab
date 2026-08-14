@@ -67,7 +67,10 @@ $('ask').onclick = async () => {
   $('ask').disabled=true; $('ask').textContent='Считаю…';
   try {
     const previous=$('previous-report').files[0];
-    const comparing=Boolean(previous);
+    const normalized=$('question').value.toLocaleLowerCase('ru');
+    const asksComparison=['сравн','сниз','измен','динамик','период','недел'].some(term=>normalized.includes(term));
+    if(asksComparison && !previous) throw new Error('Для сравнения периодов выберите предыдущий CSV-отчёт.');
+    const comparing=Boolean(previous) && asksComparison;
     const url=comparing?'/v1/marketplace/compare-chat-upload':'/v1/marketplace/chat-upload';
     const body=comparing?{question:$('question').value, previous_filename:previous.name, previous_csv_text:await previous.text(), current_filename:file.name, current_csv_text:await file.text()}:{question:$('question').value, filename:file.name, csv_text:await file.text(), low_threshold:Number($('threshold').value), high_return_threshold:Number($('return-threshold').value)};
     const response = await fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});

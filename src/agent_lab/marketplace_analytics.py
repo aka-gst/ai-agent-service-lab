@@ -227,13 +227,20 @@ def analyze_returns(
     )
 
 
-def question_type(question: str) -> Literal["buyout", "returns"]:
+def question_type(question: str) -> Literal["buyout", "returns", "comparison"]:
     normalized = question.casefold()
+    if any(
+        term in normalized
+        for term in ("сравн", "сниз", "измен", "динамик", "период", "недел")
+    ):
+        return "comparison"
     if any(term in normalized for term in ("возврат", "вернули", "возвращают")):
         return "returns"
     if any(term in normalized for term in ("выкуп", "выкупили", "выкуплен")):
         return "buyout"
-    raise ValueError("Пока поддерживаются вопросы только о выкупе и возвратах")
+    raise ValueError(
+        "Я пока умею отвечать только про выкуп, возвраты и сравнение периодов"
+    )
 
 
 def analyze_marketplace_question(
@@ -244,7 +251,10 @@ def analyze_marketplace_question(
     low_threshold: float = 70,
     high_return_threshold: float = 15,
 ) -> AnalyticsAnswer:
-    if question_type(question) == "returns":
+    intent = question_type(question)
+    if intent == "comparison":
+        raise ValueError("Для сравнения периодов нужно загрузить два CSV-отчёта")
+    if intent == "returns":
         return analyze_returns(
             metrics, source=source, high_threshold=high_return_threshold
         )
