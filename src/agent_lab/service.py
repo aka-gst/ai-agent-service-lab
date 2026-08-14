@@ -105,6 +105,7 @@ class MarketplaceQuestionRequest(StrictModel):
     question: str = Field(min_length=1, max_length=2_000)
     report: str = Field(min_length=1, max_length=255)
     low_threshold: float = Field(default=70, ge=0, le=100)
+    high_return_threshold: float = Field(default=15, ge=0, le=100)
 
 
 class MarketplaceUploadRequest(StrictModel):
@@ -112,6 +113,7 @@ class MarketplaceUploadRequest(StrictModel):
     filename: str = Field(min_length=1, max_length=255)
     csv_text: str = Field(min_length=1, max_length=5_000_000)
     low_threshold: float = Field(default=70, ge=0, le=100)
+    high_return_threshold: float = Field(default=15, ge=0, le=100)
 
 
 def resolve_report(reports_path: Path, filename: str) -> Path:
@@ -226,7 +228,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         try:
             report = resolve_report(config.marketplace_reports_path, request.report)
             return analyze_marketplace_question_path(
-                request.question, report, low_threshold=request.low_threshold
+                request.question,
+                report,
+                low_threshold=request.low_threshold,
+                high_return_threshold=request.high_return_threshold,
             )
         except ValueError as error:
             raise HTTPException(status_code=422, detail=str(error)) from error
@@ -246,6 +251,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 request.csv_text,
                 filename=request.filename,
                 low_threshold=request.low_threshold,
+                high_return_threshold=request.high_return_threshold,
             )
         except ValueError as error:
             raise HTTPException(status_code=422, detail=str(error)) from error
@@ -264,6 +270,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 report,
                 config.marketplace_knowledge_db_path,
                 low_threshold=request.low_threshold,
+                high_return_threshold=request.high_return_threshold,
                 embedding_model=config.embedding_model,
                 chat_model=config.chat_model,
                 base_url=config.ollama_base_url,
@@ -287,6 +294,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 request.filename,
                 config.marketplace_knowledge_db_path,
                 low_threshold=request.low_threshold,
+                high_return_threshold=request.high_return_threshold,
                 embedding_model=config.embedding_model,
                 chat_model=config.chat_model,
                 base_url=config.ollama_base_url,

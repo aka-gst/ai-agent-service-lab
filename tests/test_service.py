@@ -267,3 +267,41 @@ async def test_marketplace_chat_upload_endpoint(monkeypatch, tmp_path: Path) -> 
 
     assert response.status_code == 200
     assert response.json()["explanation"] == "Модель объяснила расчёт."
+
+
+async def test_marketplace_upload_accepts_return_threshold(
+    monkeypatch, tmp_path: Path
+) -> None:
+    captured = {}
+
+    def fake_answer(*_args, **kwargs):
+        captured.update(kwargs)
+        return MarketplaceChatAnswer(
+            explanation="Готово.",
+            analysis=AnalyticsAnswer(
+                analysis_type="returns",
+                answer="Результат.",
+                facts=[],
+                possible_causes=[],
+                missing_data=[],
+                metrics=[],
+                sources=["report.csv"],
+            ),
+            knowledge_sources=[],
+        )
+
+    monkeypatch.setattr(service, "answer_marketplace_upload_question", fake_answer)
+    response = await send_request(
+        tmp_path,
+        "POST",
+        "/v1/marketplace/chat-upload",
+        json={
+            "question": "Где больше возвратов?",
+            "filename": "report.csv",
+            "csv_text": "product,ordered,bought,returned\nТовар,10,5,1\n",
+            "high_return_threshold": 12,
+        },
+    )
+
+    assert response.status_code == 200
+    assert captured["high_return_threshold"] == 12

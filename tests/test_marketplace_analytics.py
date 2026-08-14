@@ -91,3 +91,14 @@ def test_unknown_question_is_rejected() -> None:
             "product,ordered,bought,returned\nТовар,10,5,1\n",
             filename="report.csv",
         )
+
+
+def test_return_threshold_counts_only_high_products() -> None:
+    answer = analyze_marketplace_question_text(
+        "Где высокая доля возвратов?",
+        "product,ordered,bought,returned\nФутболка,100,80,8\nКроссовки,50,25,5\n",
+        filename="returns.csv",
+        high_return_threshold=15,
+    )
+
+    assert "Выше порога 15% — 1 товар(ов)" in answer.answer

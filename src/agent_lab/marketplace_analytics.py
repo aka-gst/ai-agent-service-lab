@@ -172,11 +172,14 @@ def analyze_low_buyout_text(
     )
 
 
-def analyze_returns(metrics: list[ProductMetric], *, source: str) -> AnalyticsAnswer:
+def analyze_returns(
+    metrics: list[ProductMetric], *, source: str, high_threshold: float = 15
+) -> AnalyticsAnswer:
     """Найти товары с наибольшей долей возвратов среди выкупленных."""
 
     ranked = sorted(metrics, key=lambda item: item.return_rate, reverse=True)
     leader = ranked[0]
+    high_products = [item for item in ranked if item.return_rate > high_threshold]
     total_bought = sum(item.bought for item in metrics)
     total_returned = sum(item.returned for item in metrics)
     overall_rate = round(total_returned / total_bought * 100, 2) if total_bought else 0
@@ -184,7 +187,8 @@ def analyze_returns(metrics: list[ProductMetric], *, source: str) -> AnalyticsAn
         analysis_type="returns",
         answer=(
             f"Максимальная доля возвратов у товара «{leader.product}»: "
-            f"{leader.return_rate}%. Отчёт показывает отклонение, но не его причину."
+            f"{leader.return_rate}%. Выше порога {high_threshold}% — "
+            f"{len(high_products)} товар(ов). Отчёт показывает отклонение, но не его причину."
         ),
         facts=[
             f"Общая доля возвратов: {overall_rate}% ({total_returned} из {total_bought} выкупленных).",
@@ -221,17 +225,28 @@ def analyze_marketplace_question(
     *,
     source: str,
     low_threshold: float = 70,
+    high_return_threshold: float = 15,
 ) -> AnalyticsAnswer:
     if question_type(question) == "returns":
-        return analyze_returns(metrics, source=source)
+        return analyze_returns(
+            metrics, source=source, high_threshold=high_return_threshold
+        )
     return analyze_metrics(metrics, source=source, low_threshold=low_threshold)
 
 
 def analyze_marketplace_question_path(
-    question: str, path: Path, *, low_threshold: float = 70
+    question: str,
+    path: Path,
+    *,
+    low_threshold: float = 70,
+    high_return_threshold: float = 15,
 ) -> AnalyticsAnswer:
     return analyze_marketplace_question(
-        question, load_report(path), source=path.name, low_threshold=low_threshold
+        question,
+        load_report(path),
+        source=path.name,
+        low_threshold=low_threshold,
+        high_return_threshold=high_return_threshold,
     )
 
 
@@ -241,6 +256,7 @@ def analyze_marketplace_question_text(
     *,
     filename: str,
     low_threshold: float = 70,
+    high_return_threshold: float = 15,
 ) -> AnalyticsAnswer:
     if Path(filename).name != filename or not filename.lower().endswith(".csv"):
         raise ValueError("Допустимо только имя CSV-файла без пути")
@@ -249,4 +265,5 @@ def analyze_marketplace_question_text(
         load_report_text(csv_text),
         source=filename,
         low_threshold=low_threshold,
+        high_return_threshold=high_return_threshold,
     )

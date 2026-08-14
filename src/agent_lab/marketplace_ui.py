@@ -40,6 +40,8 @@ MARKETPLACE_UI = """<!doctype html>
     <input id="question" value="Почему процент выкупа маленький?">
     <label for="threshold">Порог низкого выкупа, %</label>
     <input id="threshold" type="number" min="0" max="100" value="70">
+    <label for="return-threshold">Порог высокой доли возвратов, %</label>
+    <input id="return-threshold" type="number" min="0" max="100" value="15">
     <button id="ask">Проанализировать</button>
     <p id="error" class="error hidden"></p>
   </section>
@@ -62,13 +64,13 @@ $('ask').onclick = async () => {
   if (!file) { $('error').textContent='Выберите CSV-файл.'; $('error').classList.remove('hidden'); return; }
   $('ask').disabled=true; $('ask').textContent='Считаю…';
   try {
-    const response = await fetch('/v1/marketplace/chat-upload', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({question:$('question').value, filename:file.name, csv_text:await file.text(), low_threshold:Number($('threshold').value)})});
+    const response = await fetch('/v1/marketplace/chat-upload', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({question:$('question').value, filename:file.name, csv_text:await file.text(), low_threshold:Number($('threshold').value), high_return_threshold:Number($('return-threshold').value)})});
     const payload=await response.json(); if(!response.ok) throw new Error(payload.detail || 'Ошибка анализа');
     const data=payload.analysis;
     $('explanation').textContent=payload.explanation;
     $('knowledge').textContent='Справочник: '+payload.knowledge_sources.join(', ');
     $('answer').textContent=data.answer; fill('facts',data.facts); fill('causes',data.possible_causes); fill('missing',data.missing_data);
-    $('metrics').innerHTML=data.metrics.map(m=>{ const returns=data.analysis_type==='returns'; const rate=returns?m.return_rate:m.buyout_rate; const warn=returns?rate>0:rate<Number($('threshold').value); const detail=returns?`${m.returned} из ${m.bought} выкупленных`:`${m.bought} из ${m.ordered}`; return `<div class="metric ${warn?'warn':''}"><span>${escapeHtml(m.product)}</span><strong>${rate}%</strong><small>${detail}</small></div>`; }).join('');
+    $('metrics').innerHTML=data.metrics.map(m=>{ const returns=data.analysis_type==='returns'; const rate=returns?m.return_rate:m.buyout_rate; const warn=returns?rate>Number($('return-threshold').value):rate<Number($('threshold').value); const detail=returns?`${m.returned} из ${m.bought} выкупленных`:`${m.bought} из ${m.ordered}`; return `<div class="metric ${warn?'warn':''}"><span>${escapeHtml(m.product)}</span><strong>${rate}%</strong><small>${detail}</small></div>`; }).join('');
     $('result').classList.remove('hidden');
   } catch(e) { $('error').textContent=e.message; $('error').classList.remove('hidden'); }
   finally { $('ask').disabled=false; $('ask').textContent='Проанализировать'; }

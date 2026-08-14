@@ -53,6 +53,7 @@ def answer_marketplace_question(
     knowledge_db_path: Path,
     *,
     low_threshold: float = 70,
+    high_return_threshold: float = 15,
     embedding_model: str = DEFAULT_EMBED_MODEL,
     chat_model: str = DEFAULT_CHAT_MODEL,
     base_url: str = "http://127.0.0.1:11434",
@@ -61,7 +62,10 @@ def answer_marketplace_question(
     """Рассчитать метрики, найти справку и попросить LLM только объяснить факты."""
 
     analysis = analyze_marketplace_question_path(
-        question, report_path, low_threshold=low_threshold
+        question,
+        report_path,
+        low_threshold=low_threshold,
+        high_return_threshold=high_return_threshold,
     )
     return explain_marketplace_analysis(
         question,
@@ -81,6 +85,7 @@ def answer_marketplace_upload_question(
     knowledge_db_path: Path,
     *,
     low_threshold: float = 70,
+    high_return_threshold: float = 15,
     embedding_model: str = DEFAULT_EMBED_MODEL,
     chat_model: str = DEFAULT_CHAT_MODEL,
     base_url: str = "http://127.0.0.1:11434",
@@ -93,6 +98,7 @@ def answer_marketplace_upload_question(
         csv_text,
         filename=filename,
         low_threshold=low_threshold,
+        high_return_threshold=high_return_threshold,
     )
     return explain_marketplace_analysis(
         question,
