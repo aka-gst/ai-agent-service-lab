@@ -14,6 +14,7 @@ from fastapi import Depends, FastAPI, HTTPException
 from fastapi.security import APIKeyHeader
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from agent_lab.marketplace_analytics import AnalyticsAnswer, analyze_low_buyout
 from agent_lab.rag import DEFAULT_DB_PATH, answer_question
 from agent_lab.structured_output import SupportTicket, classify_ticket
 
@@ -27,6 +28,7 @@ class Settings:
     chat_model: str = "qwen3:8b"
     embedding_model: str = "qwen3-embedding:0.6b"
     rag_db_path: Path = DEFAULT_DB_PATH
+    marketplace_reports_path: Path = Path("data/demo/marketplace")
     api_key: str | None = None
 
     @classmethod
@@ -36,6 +38,11 @@ class Settings:
             chat_model=os.getenv("CHAT_MODEL", cls.chat_model),
             embedding_model=os.getenv("EMBEDDING_MODEL", cls.embedding_model),
             rag_db_path=Path(os.getenv("RAG_DB_PATH", str(cls.rag_db_path))),
+            marketplace_reports_path=Path(
+                os.getenv(
+                    "MARKETPLACE_REPORTS_PATH", str(cls.marketplace_reports_path)
+                )
+            ),
             api_key=os.getenv("SERVICE_API_KEY") or None,
         )
 
@@ -73,6 +80,28 @@ class RagResponse(StrictModel):
     answer: str
     sources: list[str]
     retrieval: list[RetrievedSource]
+
+
+class MarketplaceQuestionRequest(StrictModel):
+    question: str = Field(min_length=1, max_length=2_000)
+    report: str = Field(min_length=1, max_length=255)
+    low_threshold: float = Field(default=70, ge=0, le=100)
+
+
+def resolve_report(reports_path: Path, filename: str) -> Path:
+    """Разрешить доступ только к CSV непосредственно в папке отчётов."""
+
+    if Path(filename).name != filename or not filename.lower().endswith(".csv"):
+        raise ValueError("Допустимо только имя CSV-файла без пути")
+    report = reports_path / filename
+    if not report.is_file():
+        raise ValueError(f"Отчёт не найден: {filename}")
+    return report
+
+
+def is_buyout_question(question: str) -> bool:
+    normalized = question.casefold()
+    return any(term in normalized for term in ("выкуп", "выкупили", "выкуплен"))
 
 
 def ollama_is_ready(base_url: str, timeout: float = 2) -> bool:
@@ -154,6 +183,26 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 RetrievedSource(source=item.source, score=item.score) for item in retrieved
             ],
         )
+
+    @app.post(
+        "/v1/marketplace/ask",
+        response_model=AnalyticsAnswer,
+        dependencies=[Depends(authorize)],
+    )
+    def marketplace_ask(request: MarketplaceQuestionRequest) -> AnalyticsAnswer:
+        if not is_buyout_question(request.question):
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    "Пока поддерживаются вопросы только о проценте выкупа. "
+                    "Другие показатели добавим отдельными проверяемыми сценариями."
+                ),
+            )
+        try:
+            report = resolve_report(config.marketplace_reports_path, request.report)
+            return analyze_low_buyout(report, low_threshold=request.low_threshold)
+        except ValueError as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
 
     return app
 

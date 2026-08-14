@@ -29,3 +29,19 @@ uv run python -c 'from pathlib import Path; from agent_lab.marketplace_analytics
 - возможные причины не смешиваются с доказанными фактами;
 - ответ содержит имя использованного файла;
 - тесты работают без Ollama и интернета.
+
+## HTTP API
+
+После запуска FastAPI вопрос можно отправить так:
+
+```bash
+curl -X POST http://127.0.0.1:8000/v1/marketplace/ask \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "question": "Почему процент выкупа маленький?",
+    "report": "sales-report.csv",
+    "low_threshold": 70
+  }'
+```
+
+На этом этапе API намеренно поддерживает только вопросы о выкупе. Неизвестные виды анализа отклоняются, а доступ к файлам ограничен папкой `MARKETPLACE_REPORTS_PATH`.

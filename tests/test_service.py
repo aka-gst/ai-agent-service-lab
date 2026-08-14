@@ -18,7 +18,11 @@ def anyio_backend():
 
 
 def make_app(tmp_path: Path, api_key: str | None = None):
-    settings = Settings(rag_db_path=tmp_path / "rag.sqlite3", api_key=api_key)
+    settings = Settings(
+        rag_db_path=tmp_path / "rag.sqlite3",
+        marketplace_reports_path=tmp_path,
+        api_key=api_key,
+    )
     return create_app(settings)
 
 
@@ -119,3 +123,52 @@ async def test_health_does_not_require_configured_api_key(tmp_path: Path) -> Non
     )
 
     assert response.status_code == 200
+
+
+async def test_marketplace_endpoint_analyzes_report(tmp_path: Path) -> None:
+    (tmp_path / "report.csv").write_text(
+        "product,ordered,bought,returned\nФутболка,100,60,4\n",
+        encoding="utf-8",
+    )
+
+    response = await send_request(
+        tmp_path,
+        "POST",
+        "/v1/marketplace/ask",
+        json={
+            "question": "Почему процент выкупа маленький?",
+            "report": "report.csv",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["metrics"][0]["buyout_rate"] == 60
+    assert payload["sources"] == ["report.csv"]
+    assert payload["possible_causes"]
+
+
+async def test_marketplace_endpoint_rejects_path_traversal(tmp_path: Path) -> None:
+    response = await send_request(
+        tmp_path,
+        "POST",
+        "/v1/marketplace/ask",
+        json={"question": "Какой выкуп?", "report": "../../secret.csv"},
+    )
+
+    assert response.status_code == 422
+    assert "без пути" in response.json()["detail"]
+
+
+async def test_marketplace_endpoint_does_not_fake_unsupported_analysis(
+    tmp_path: Path,
+) -> None:
+    response = await send_request(
+        tmp_path,
+        "POST",
+        "/v1/marketplace/ask",
+        json={"question": "Почему упала прибыль?", "report": "report.csv"},
+    )
+
+    assert response.status_code == 422
+    assert "только о проценте выкупа" in response.json()["detail"]
