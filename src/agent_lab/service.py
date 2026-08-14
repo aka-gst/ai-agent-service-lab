@@ -11,14 +11,20 @@ from urllib.error import URLError
 from urllib.request import urlopen
 
 from fastapi import Depends, FastAPI, HTTPException
+from fastapi.responses import HTMLResponse
 from fastapi.security import APIKeyHeader
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from agent_lab.marketplace_analytics import AnalyticsAnswer, analyze_low_buyout
+from agent_lab.marketplace_analytics import (
+    AnalyticsAnswer,
+    analyze_low_buyout,
+    analyze_low_buyout_text,
+)
 from agent_lab.marketplace_assistant import (
     MarketplaceChatAnswer,
     answer_marketplace_question,
 )
+from agent_lab.marketplace_ui import MARKETPLACE_UI
 from agent_lab.rag import DEFAULT_DB_PATH, answer_question
 from agent_lab.structured_output import SupportTicket, classify_ticket
 
@@ -99,6 +105,13 @@ class MarketplaceQuestionRequest(StrictModel):
     low_threshold: float = Field(default=70, ge=0, le=100)
 
 
+class MarketplaceUploadRequest(StrictModel):
+    question: str = Field(min_length=1, max_length=2_000)
+    filename: str = Field(min_length=1, max_length=255)
+    csv_text: str = Field(min_length=1, max_length=5_000_000)
+    low_threshold: float = Field(default=70, ge=0, le=100)
+
+
 def resolve_report(reports_path: Path, filename: str) -> Path:
     """Разрешить доступ только к CSV непосредственно в папке отчётов."""
 
@@ -143,6 +156,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/health", response_model=HealthResponse)
     def health() -> HealthResponse:
         return HealthResponse(status="ok", service_version=SERVICE_VERSION)
+
+    @app.get("/marketplace", response_class=HTMLResponse, include_in_schema=False)
+    def marketplace_ui() -> str:
+        return MARKETPLACE_UI
 
     @app.get("/ready", response_model=ReadinessResponse)
     def ready() -> ReadinessResponse:
@@ -212,6 +229,28 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         try:
             report = resolve_report(config.marketplace_reports_path, request.report)
             return analyze_low_buyout(report, low_threshold=request.low_threshold)
+        except ValueError as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
+
+    @app.post(
+        "/v1/marketplace/analyze-upload",
+        response_model=AnalyticsAnswer,
+        dependencies=[Depends(authorize)],
+    )
+    def marketplace_analyze_upload(
+        request: MarketplaceUploadRequest,
+    ) -> AnalyticsAnswer:
+        if not is_buyout_question(request.question):
+            raise HTTPException(
+                status_code=422,
+                detail="Пока поддерживаются вопросы только о проценте выкупа.",
+            )
+        try:
+            return analyze_low_buyout_text(
+                request.csv_text,
+                filename=request.filename,
+                low_threshold=request.low_threshold,
+            )
         except ValueError as error:
             raise HTTPException(status_code=422, detail=str(error)) from error
 

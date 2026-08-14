@@ -208,3 +208,28 @@ async def test_marketplace_chat_endpoint(monkeypatch, tmp_path: Path) -> None:
 
     assert response.status_code == 200
     assert response.json()["explanation"] == "Причина не доказана."
+
+
+async def test_marketplace_ui_is_available(tmp_path: Path) -> None:
+    response = await send_request(tmp_path, "GET", "/marketplace")
+
+    assert response.status_code == 200
+    assert "AI-помощник аналитика" in response.text
+    assert "/v1/marketplace/analyze-upload" in response.text
+
+
+async def test_marketplace_upload_is_analyzed_in_memory(tmp_path: Path) -> None:
+    response = await send_request(
+        tmp_path,
+        "POST",
+        "/v1/marketplace/analyze-upload",
+        json={
+            "question": "Почему выкуп низкий?",
+            "filename": "my-report.csv",
+            "csv_text": "product,ordered,bought,returned\nТовар,10,5,1\n",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["metrics"][0]["buyout_rate"] == 50
+    assert response.json()["sources"] == ["my-report.csv"]

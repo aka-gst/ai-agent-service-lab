@@ -2,7 +2,11 @@ from pathlib import Path
 
 import pytest
 
-from agent_lab.marketplace_analytics import analyze_low_buyout, load_report
+from agent_lab.marketplace_analytics import (
+    analyze_low_buyout,
+    analyze_low_buyout_text,
+    load_report,
+)
 
 
 def write_report(tmp_path: Path, content: str) -> Path:
@@ -55,3 +59,13 @@ def test_report_rejects_impossible_values(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="bought не может быть больше ordered"):
         load_report(report)
+
+
+def test_analyze_uploaded_csv_without_saving_file() -> None:
+    answer = analyze_low_buyout_text(
+        "product,ordered,bought,returned\nТовар,20,10,2\n",
+        filename="uploaded.csv",
+    )
+
+    assert answer.metrics[0].buyout_rate == 50
+    assert answer.sources == ["uploaded.csv"]

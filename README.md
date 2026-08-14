@@ -15,7 +15,7 @@
 - evaluation-набор: 6/6 сценариев, retrieval hit rate 100%;
 - FastAPI, API-key guard, Docker Compose и health checks;
 - backup/restore с SHA-256 и защита от path traversal;
-- 51 автоматический тест;
+- 54 автоматических теста;
 - первый модуль помощника аналитика маркетплейса на искусственном CSV.
 
 ## Архитектура
@@ -50,6 +50,8 @@ uv run uvicorn agent_lab.service:app --host 127.0.0.1 --port 8000
 curl http://127.0.0.1:8000/health
 curl http://127.0.0.1:8000/ready
 ```
+
+Веб-интерфейс помощника: <http://127.0.0.1:8000/marketplace>.
 
 Вопрос по демонстрационному отчёту маркетплейса:
 
