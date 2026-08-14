@@ -5,6 +5,7 @@ import pytest
 from agent_lab.marketplace_analytics import (
     analyze_low_buyout,
     analyze_low_buyout_text,
+    analyze_marketplace_question_text,
     load_report,
 )
 
@@ -69,3 +70,24 @@ def test_analyze_uploaded_csv_without_saving_file() -> None:
 
     assert answer.metrics[0].buyout_rate == 50
     assert answer.sources == ["uploaded.csv"]
+
+
+def test_return_question_finds_highest_return_rate() -> None:
+    answer = analyze_marketplace_question_text(
+        "У какого товара больше всего возвратов?",
+        "product,ordered,bought,returned\nФутболка,100,80,8\nКроссовки,50,25,5\n",
+        filename="returns.csv",
+    )
+
+    assert answer.analysis_type == "returns"
+    assert "Кроссовки" in answer.answer
+    assert next(item for item in answer.metrics if item.product == "Кроссовки").return_rate == 20
+
+
+def test_unknown_question_is_rejected() -> None:
+    with pytest.raises(ValueError, match="выкупе и возвратах"):
+        analyze_marketplace_question_text(
+            "Почему упала прибыль?",
+            "product,ordered,bought,returned\nТовар,10,5,1\n",
+            filename="report.csv",
+        )

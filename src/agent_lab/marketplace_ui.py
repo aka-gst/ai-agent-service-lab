@@ -32,7 +32,7 @@ MARKETPLACE_UI = """<!doctype html>
 </head>
 <body><main>
   <h1>AI-помощник аналитика</h1>
-  <p class="lead">Загрузите обезличенный CSV и задайте вопрос о проценте выкупа.</p>
+  <p class="lead">Загрузите обезличенный CSV и спросите о выкупе или возвратах.</p>
   <section class="panel">
     <label for="report">CSV-отчёт</label>
     <input id="report" type="file" accept=".csv,text/csv">
@@ -68,7 +68,7 @@ $('ask').onclick = async () => {
     $('explanation').textContent=payload.explanation;
     $('knowledge').textContent='Справочник: '+payload.knowledge_sources.join(', ');
     $('answer').textContent=data.answer; fill('facts',data.facts); fill('causes',data.possible_causes); fill('missing',data.missing_data);
-    $('metrics').innerHTML=data.metrics.map(m=>`<div class="metric ${m.buyout_rate < Number($('threshold').value) ? 'warn':''}"><span>${escapeHtml(m.product)}</span><strong>${m.buyout_rate}%</strong><small>${m.bought} из ${m.ordered}</small></div>`).join('');
+    $('metrics').innerHTML=data.metrics.map(m=>{ const returns=data.analysis_type==='returns'; const rate=returns?m.return_rate:m.buyout_rate; const warn=returns?rate>0:rate<Number($('threshold').value); const detail=returns?`${m.returned} из ${m.bought} выкупленных`:`${m.bought} из ${m.ordered}`; return `<div class="metric ${warn?'warn':''}"><span>${escapeHtml(m.product)}</span><strong>${rate}%</strong><small>${detail}</small></div>`; }).join('');
     $('result').classList.remove('hidden');
   } catch(e) { $('error').textContent=e.message; $('error').classList.remove('hidden'); }
   finally { $('ask').disabled=false; $('ask').textContent='Проанализировать'; }

@@ -174,7 +174,7 @@ async def test_marketplace_endpoint_does_not_fake_unsupported_analysis(
     )
 
     assert response.status_code == 422
-    assert "только о проценте выкупа" in response.json()["detail"]
+    assert "выкупе и возвратах" in response.json()["detail"]
 
 
 async def test_marketplace_chat_endpoint(monkeypatch, tmp_path: Path) -> None:

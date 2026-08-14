@@ -17,8 +17,9 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from agent_lab.marketplace_analytics import (
     AnalyticsAnswer,
-    analyze_low_buyout,
-    analyze_low_buyout_text,
+    analyze_marketplace_question_path,
+    analyze_marketplace_question_text,
+    question_type,
 )
 from agent_lab.marketplace_assistant import (
     MarketplaceChatAnswer,
@@ -124,9 +125,11 @@ def resolve_report(reports_path: Path, filename: str) -> Path:
     return report
 
 
-def is_buyout_question(question: str) -> bool:
-    normalized = question.casefold()
-    return any(term in normalized for term in ("выкуп", "выкупили", "выкуплен"))
+def ensure_supported_question(question: str) -> None:
+    try:
+        question_type(question)
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
 
 
 def ollama_is_ready(base_url: str, timeout: float = 2) -> bool:
@@ -219,17 +222,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         dependencies=[Depends(authorize)],
     )
     def marketplace_ask(request: MarketplaceQuestionRequest) -> AnalyticsAnswer:
-        if not is_buyout_question(request.question):
-            raise HTTPException(
-                status_code=422,
-                detail=(
-                    "Пока поддерживаются вопросы только о проценте выкупа. "
-                    "Другие показатели добавим отдельными проверяемыми сценариями."
-                ),
-            )
+        ensure_supported_question(request.question)
         try:
             report = resolve_report(config.marketplace_reports_path, request.report)
-            return analyze_low_buyout(report, low_threshold=request.low_threshold)
+            return analyze_marketplace_question_path(
+                request.question, report, low_threshold=request.low_threshold
+            )
         except ValueError as error:
             raise HTTPException(status_code=422, detail=str(error)) from error
 
@@ -241,13 +239,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     def marketplace_analyze_upload(
         request: MarketplaceUploadRequest,
     ) -> AnalyticsAnswer:
-        if not is_buyout_question(request.question):
-            raise HTTPException(
-                status_code=422,
-                detail="Пока поддерживаются вопросы только о проценте выкупа.",
-            )
+        ensure_supported_question(request.question)
         try:
-            return analyze_low_buyout_text(
+            return analyze_marketplace_question_text(
+                request.question,
                 request.csv_text,
                 filename=request.filename,
                 low_threshold=request.low_threshold,
@@ -261,11 +256,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         dependencies=[Depends(authorize)],
     )
     def marketplace_chat(request: MarketplaceQuestionRequest) -> MarketplaceChatAnswer:
-        if not is_buyout_question(request.question):
-            raise HTTPException(
-                status_code=422,
-                detail="Пока поддерживаются вопросы только о проценте выкупа.",
-            )
+        ensure_supported_question(request.question)
         try:
             report = resolve_report(config.marketplace_reports_path, request.report)
             return answer_marketplace_question(
@@ -288,11 +279,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     def marketplace_chat_upload(
         request: MarketplaceUploadRequest,
     ) -> MarketplaceChatAnswer:
-        if not is_buyout_question(request.question):
-            raise HTTPException(
-                status_code=422,
-                detail="Пока поддерживаются вопросы только о проценте выкупа.",
-            )
+        ensure_supported_question(request.question)
         try:
             return answer_marketplace_upload_question(
                 request.question,

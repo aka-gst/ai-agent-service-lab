@@ -5,7 +5,7 @@ from __future__ import annotations
 import csv
 from collections import defaultdict
 from io import StringIO
-from typing import TextIO
+from typing import Literal, TextIO
 from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -21,9 +21,11 @@ class ProductMetric(StrictModel):
     bought: int = Field(ge=0)
     returned: int = Field(ge=0)
     buyout_rate: float = Field(ge=0, le=100)
+    return_rate: float = Field(ge=0, le=100)
 
 
 class AnalyticsAnswer(StrictModel):
+    analysis_type: Literal["buyout", "returns"] = "buyout"
     answer: str
     facts: list[str]
     possible_causes: list[str]
@@ -70,6 +72,8 @@ def _load_report_stream(report: TextIO) -> list[ProductMetric]:
         )
         if bought > ordered:
             raise ValueError(f"Строка {row_number}: bought не может быть больше ordered")
+        if returned > bought:
+            raise ValueError(f"Строка {row_number}: returned не может быть больше bought")
         totals[product][0] += ordered
         totals[product][1] += bought
         totals[product][2] += returned
@@ -84,6 +88,7 @@ def _load_report_stream(report: TextIO) -> list[ProductMetric]:
             bought=values[1],
             returned=values[2],
             buyout_rate=round(values[1] / values[0] * 100, 2) if values[0] else 0,
+            return_rate=round(values[2] / values[1] * 100, 2) if values[1] else 0,
         )
         for product, values in sorted(totals.items())
     ]
@@ -137,6 +142,7 @@ def analyze_metrics(
         answer = f"Товаров с выкупом ниже порога {low_threshold}% в отчёте нет."
 
     return AnalyticsAnswer(
+        analysis_type="buyout",
         answer=answer,
         facts=facts,
         possible_causes=possible_causes,
@@ -163,4 +169,84 @@ def analyze_low_buyout_text(
         raise ValueError("Допустимо только имя CSV-файла без пути")
     return analyze_metrics(
         load_report_text(csv_text), source=filename, low_threshold=low_threshold
+    )
+
+
+def analyze_returns(metrics: list[ProductMetric], *, source: str) -> AnalyticsAnswer:
+    """Найти товары с наибольшей долей возвратов среди выкупленных."""
+
+    ranked = sorted(metrics, key=lambda item: item.return_rate, reverse=True)
+    leader = ranked[0]
+    total_bought = sum(item.bought for item in metrics)
+    total_returned = sum(item.returned for item in metrics)
+    overall_rate = round(total_returned / total_bought * 100, 2) if total_bought else 0
+    return AnalyticsAnswer(
+        analysis_type="returns",
+        answer=(
+            f"Максимальная доля возвратов у товара «{leader.product}»: "
+            f"{leader.return_rate}%. Отчёт показывает отклонение, но не его причину."
+        ),
+        facts=[
+            f"Общая доля возвратов: {overall_rate}% ({total_returned} из {total_bought} выкупленных).",
+            *(
+                f"{item.product}: возвраты {item.return_rate}% ({item.returned} из {item.bought})."
+                for item in ranked
+            ),
+        ],
+        possible_causes=[
+            "Несоответствие качества, размера, комплектации или описания товара.",
+            "Повреждение при доставке или ошибочное ожидание покупателя.",
+        ],
+        missing_data=[
+            "Причины возвратов по каждому заказу.",
+            "Отзывы, характеристики товара, поставки и сведения о повреждениях.",
+        ],
+        metrics=metrics,
+        sources=[source],
+    )
+
+
+def question_type(question: str) -> Literal["buyout", "returns"]:
+    normalized = question.casefold()
+    if any(term in normalized for term in ("возврат", "вернули", "возвращают")):
+        return "returns"
+    if any(term in normalized for term in ("выкуп", "выкупили", "выкуплен")):
+        return "buyout"
+    raise ValueError("Пока поддерживаются вопросы только о выкупе и возвратах")
+
+
+def analyze_marketplace_question(
+    question: str,
+    metrics: list[ProductMetric],
+    *,
+    source: str,
+    low_threshold: float = 70,
+) -> AnalyticsAnswer:
+    if question_type(question) == "returns":
+        return analyze_returns(metrics, source=source)
+    return analyze_metrics(metrics, source=source, low_threshold=low_threshold)
+
+
+def analyze_marketplace_question_path(
+    question: str, path: Path, *, low_threshold: float = 70
+) -> AnalyticsAnswer:
+    return analyze_marketplace_question(
+        question, load_report(path), source=path.name, low_threshold=low_threshold
+    )
+
+
+def analyze_marketplace_question_text(
+    question: str,
+    csv_text: str,
+    *,
+    filename: str,
+    low_threshold: float = 70,
+) -> AnalyticsAnswer:
+    if Path(filename).name != filename or not filename.lower().endswith(".csv"):
+        raise ValueError("Допустимо только имя CSV-файла без пути")
+    return analyze_marketplace_question(
+        question,
+        load_report_text(csv_text),
+        source=filename,
+        low_threshold=low_threshold,
     )

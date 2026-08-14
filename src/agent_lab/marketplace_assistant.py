@@ -8,8 +8,8 @@ from pydantic import BaseModel, ConfigDict
 
 from agent_lab.marketplace_analytics import (
     AnalyticsAnswer,
-    analyze_low_buyout,
-    analyze_low_buyout_text,
+    analyze_marketplace_question_path,
+    analyze_marketplace_question_text,
 )
 from agent_lab.rag import (
     DEFAULT_CHAT_MODEL,
@@ -60,7 +60,9 @@ def answer_marketplace_question(
 ) -> MarketplaceChatAnswer:
     """Рассчитать метрики, найти справку и попросить LLM только объяснить факты."""
 
-    analysis = analyze_low_buyout(report_path, low_threshold=low_threshold)
+    analysis = analyze_marketplace_question_path(
+        question, report_path, low_threshold=low_threshold
+    )
     return explain_marketplace_analysis(
         question,
         analysis,
@@ -86,8 +88,11 @@ def answer_marketplace_upload_question(
 ) -> MarketplaceChatAnswer:
     """Проанализировать загруженный CSV в памяти и объяснить результат."""
 
-    analysis = analyze_low_buyout_text(
-        csv_text, filename=filename, low_threshold=low_threshold
+    analysis = analyze_marketplace_question_text(
+        question,
+        csv_text,
+        filename=filename,
+        low_threshold=low_threshold,
     )
     return explain_marketplace_analysis(
         question,
