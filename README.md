@@ -1,6 +1,61 @@
 # AI Agent Service Lab
 
+[![Tests](https://github.com/aka-gst/ai-agent-service-lab/actions/workflows/tests.yml/badge.svg)](https://github.com/aka-gst/ai-agent-service-lab/actions/workflows/tests.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 Учебно-практический проект Сергея Каспировича: разобраться, как устроены AI-агенты, научиться собирать их под реальные задачи и превратить этот навык в понятную услугу для клиентов.
+
+## Что уже работает
+
+- локальная генерация через Ollama и `qwen3:8b`;
+- structured output с JSON Schema и Pydantic;
+- agent loop с allowlist безопасных инструментов;
+- память сессий и audit log в SQLite;
+- RAG по Markdown-документам с проверяемыми источниками;
+- evaluation-набор: 6/6 сценариев, retrieval hit rate 100%;
+- FastAPI, API-key guard, Docker Compose и health checks;
+- backup/restore с SHA-256 и защита от path traversal;
+- 41 автоматический тест.
+
+## Архитектура
+
+```mermaid
+flowchart LR
+    Client["CLI / HTTP-клиент"] --> API["FastAPI + Pydantic"]
+    API --> Guard["API key + лимиты"]
+    Guard --> Agent["Agent loop"]
+    Agent --> Tools["Разрешённые инструменты"]
+    Agent --> Memory["SQLite: память и audit"]
+    Agent --> RAG["RAG-поиск"]
+    RAG --> Docs["Документы клиента"]
+    RAG --> Embed["qwen3-embedding:0.6b"]
+    Agent --> Model["Ollama / qwen3:8b"]
+```
+
+## Быстрый запуск
+
+Требования: Python 3.12+, [uv](https://docs.astral.sh/uv/), Ollama и модели `qwen3:8b`, `qwen3-embedding:0.6b`.
+
+```bash
+uv sync --python 3.12
+uv run python -m agent_lab.rag index
+uv run pytest -q
+uv run uvicorn agent_lab.service:app --host 127.0.0.1 --port 8000
+```
+
+Проверка сервиса:
+
+```bash
+curl http://127.0.0.1:8000/health
+curl http://127.0.0.1:8000/ready
+```
+
+Запуск через Docker Desktop:
+
+```bash
+docker compose build
+docker compose up -d
+```
 
 ## Конечный результат
 
@@ -57,3 +112,9 @@ tests/      автоматические проверки
 ## Текущий результат
 
 Пройдены лабораторные 1–8: Ollama API, structured output, безопасные инструменты, память SQLite, RAG, evaluation, FastAPI/Docker и передача клиенту. Финальный локальный API упакован в контейнер, а проверяемый набор содержит 41 автоматический тест.
+
+Подробный портфельный разбор: [docs/portfolio-case-study.md](docs/portfolio-case-study.md).
+
+## Лицензия
+
+Исходный код проекта опубликован по лицензии [MIT](LICENSE). Модели, Ollama, Docker и сторонние библиотеки распространяются на собственных условиях и не включены в эту лицензию.
